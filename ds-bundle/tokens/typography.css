@@ -1,0 +1,36 @@
+/* Dit Giff — typography tokens.
+   Source of truth: docs/product/DESIGN-SYSTEM.md
+
+   Five roles, no more. Code leading is 18px and does not move: this is a
+   long-reading tool, and the vertical regularity of the code block matters
+   more than saving height. */
+
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Panel title — SF Pro Text 13/18 600 */
+  --type-panel-title-size: 13px;
+  --type-panel-title-leading: 18px;
+  --type-panel-title-weight: 600;
+
+  /* Interface body — SF Pro Text 13/18 400 */
+  --type-body-size: 13px;
+  --type-body-leading: 18px;
+  --type-body-weight: 400;
+
+  /* Label, metadata — SF Pro Text 11/15 500 */
+  --type-label-size: 11px;
+  --type-label-leading: 15px;
+  --type-label-weight: 500;
+
+  /* Code — SF Mono 12/18 400 */
+  --type-code-size: 12px;
+  --type-code-leading: 18px;
+  --type-code-weight: 400;
+
+  /* Line number — SF Mono 11/18 400 */
+  --type-line-number-size: 11px;
+  --type-line-number-leading: 18px;
+  --type-line-number-weight: 400;
+}

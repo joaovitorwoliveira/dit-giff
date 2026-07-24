@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/color.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/space.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/styles.css">
+  <script src="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/_ds_bundle.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Revision 2 palette: neutral-gray chrome. Temporary token override until
+       the design-system re-sync lands the new DESIGN-SYSTEM.md values. */
+    :root, :root[data-theme="dark"] {
+      --surface-0: #0A0B0D; --surface-1: #0F1113; --surface-2: #14161A; --surface-3: #1B1E23;
+      --border-subtle: #1F2227; --border: #2B2F36;
+      --text-primary: #E7E9EC; --text-secondary: #9BA1A9; --text-tertiary: #666C75;
+      --focus-ring: rgba(155, 161, 169, 0.40);
+      --diff-add: #3DDC5E; --diff-del: #FF5744;
+      --diff-add-bg: rgba(61, 220, 94, 0.17); --diff-del-bg: rgba(255, 87, 68, 0.17);
+      --diff-add-word: rgba(61, 220, 94, 0.38); --diff-del-word: rgba(255, 87, 68, 0.38);
+      --sx-key: #C594E0; --sx-type: #5FD4C4; --sx-str: #E0B486; --sx-num: #E5936B; --sx-com: #5F6B78; --sx-fn: #7FA6FF; --sx-punc: #8A93A0;
+      --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    :root[data-theme="light"] {
+      --surface-0: #EFEDE7; --surface-1: #F6F4EF; --surface-2: #FBFAF6; --surface-3: #E7E4DC;
+      --border-subtle: #E1DDD3; --border: #D2CDC1;
+      --text-primary: #1C1B18; --text-secondary: #5A574F; --text-tertiary: #908C81;
+      --focus-ring: rgba(90, 87, 79, 0.32);
+      --diff-add: #189938; --diff-del: #E0230E;
+      --diff-add-bg: rgba(24, 153, 56, 0.15); --diff-del-bg: rgba(224, 35, 14, 0.14);
+      --diff-add-word: rgba(24, 153, 56, 0.30); --diff-del-word: rgba(224, 35, 14, 0.28);
+      --sx-key: #9A3FB8; --sx-type: #0F7C79; --sx-str: #8A4B00; --sx-num: #9E4A00; --sx-com: #8A9199; --sx-fn: #2E5BD0; --sx-punc: #6A6F77;
+    }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
+    a:hover { color: var(--text-secondary); }
+    ::placeholder { color: var(--text-tertiary); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    @keyframes dg-panel-in { from { transform: translateX(24px); opacity: 0; } }
+    .sx-key{color:var(--sx-key)}
+    .sx-type{color:var(--sx-type)}
+    .sx-str{color:var(--sx-str)}
+    .sx-num{color:var(--sx-num)}
+    .sx-fn{color:var(--sx-fn)}
+    .sx-com{color:var(--sx-com);font-style:italic}
+    .sx-punc{color:var(--sx-punc)}
+    .dg-diff ::selection{background:color-mix(in srgb, var(--diff-add) 30%, transparent)}
+    .dg-diff ::-moz-selection{background:color-mix(in srgb, var(--diff-add) 30%, transparent)}
+    .dg-sel-line{box-shadow:inset 3px 0 0 var(--diff-add)}
+  </style>
+</helmet>
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--surface-0);font-family:var(--font-ui)">
+  <sc-if value="{{ isWelcome }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Welcome" style="flex:1;display:flex;align-items:center;justify-content:center;padding:var(--space-24);overflow-y:auto">
+      <div class="ds-surface-1 ds-border ds-radius-lg" style="width:460px;max-width:100%;box-shadow:var(--shadow-popover);overflow:hidden" onDragOver="{{ dragOver }}" onDrop="{{ dropRepo }}">
+        <div style="display:flex;align-items:center;gap:var(--space-8);padding:var(--space-12) var(--space-12) 0">
+          <span style="width:10px;height:10px;border-radius:50%;background:#FF5F57;display:block"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#FEBC2E;display:block"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#28C840;display:block"></span>
+        </div>
+        <div style="padding:var(--space-16) var(--space-24) var(--space-24);display:flex;flex-direction:column;gap:var(--space-16)">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span class="ds-panel-title" style="font-size:15px">Dit Giff</span>
+            <span class="ds-label ds-text-tertiary">Read the change before you open the MR.</span>
+          </div>
+          <sc-if value="{{ noRepo }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+              <div class="ds-label ds-text-tertiary" style="text-transform:uppercase;letter-spacing:0.06em">Recent repositories</div>
+              <div class="ds-surface-2 ds-border-subtle ds-radius-md" style="overflow:hidden">
+                <sc-for list="{{ repos }}" as="r" hint-placeholder-count="3">
+                  <div onClick="{{ r.pick }}" style="display:flex;align-items:center;gap:var(--space-12);padding:var(--space-8) var(--space-12);cursor:pointer;border-top:{{ r.borderTop }}" style-hover="background:var(--surface-3)">
+                    <span class="ds-text-tertiary" style="flex:0 0 auto;display:flex"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4.5h4.2l1.6 2h7.2v6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z"></path></svg></span>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+                      <span class="ds-body ds-text-primary">{{ r.name }}</span>
+                      <span class="ds-label ds-text-tertiary" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.path }}</span>
+                    </div>
+                    <span class="ds-code ds-text-tertiary" style="font-size:10px;flex:0 0 auto">{{ r.branch }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--space-12)">
+                <button onClick="{{ openRepo }}" class="ds-body ds-focus-ring ds-radius-sm" style="background:var(--surface-3);border:1px solid var(--border);padding:4px var(--space-12);cursor:pointer;color:var(--text-primary)" style-hover="border-color:var(--text-tertiary)">Open repository…</button>
+                <span class="ds-label ds-text-tertiary">or drop a folder here</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hasRepo }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:var(--space-16)">
+              <div class="ds-surface-2 ds-border-subtle ds-radius-md" style="display:flex;align-items:center;gap:var(--space-12);padding:var(--space-8) var(--space-12)">
+                <span class="ds-text-tertiary" style="flex:0 0 auto;display:flex"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 4.5h4.2l1.6 2h7.2v6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z"></path></svg></span>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+                  <span class="ds-body ds-text-primary">{{ repoName }}</span>
+                  <span class="ds-label ds-text-tertiary" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ repoPath }}</span>
+                </div>
+                <span class="ds-label ds-text-secondary" onClick="{{ changeRepo }}" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;flex:0 0 auto">Change</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+                <div class="ds-label ds-text-tertiary" style="text-transform:uppercase;letter-spacing:0.06em">Branches</div>
+                <div style="display:flex;align-items:center;gap:var(--space-8)">
+                  <select value="{{ compareValue }}" onChange="{{ onCompare }}" class="ds-body ds-focus-ring" style="flex:1;min-width:0;background:var(--surface-2);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);height:28px;padding:0 var(--space-8);outline:none;font-family:var(--font-ui)">
+                    <option value="">Choose a branch…</option>
+                    <option value="feature/annual-billing">feature/annual-billing</option>
+                    <option value="feature/http-migration">feature/http-migration</option>
+                    <option value="fix/decimal-rounding">fix/decimal-rounding</option>
+                    <option value="develop">develop</option>
+                  </select>
+                  <span class="ds-text-tertiary" style="flex:0 0 auto">→</span>
+                  <select value="{{ baseValue }}" onChange="{{ onBase }}" class="ds-body ds-focus-ring" style="width:120px;flex:0 0 120px;background:var(--surface-2);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);height:28px;padding:0 var(--space-8);outline:none;font-family:var(--font-ui)">
+                    <option value="main">main</option>
+                    <option value="develop">develop</option>
+                    <option value="master">master</option>
+                  </select>
+                </div>
+                <sc-if value="{{ showCount }}" hint-placeholder-val="{{ false }}">
+                  <div class="ds-code ds-text-secondary" style="font-size:11px">{{ countText }}</div>
+                </sc-if>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+                <div class="ds-surface-2 ds-radius-md" style="border:1px solid var(--border);display:flex;flex-direction:column">
+                  <textarea rows="2" onInput="{{ growGoal }}" placeholder="What should this change do? (optional)" class="ds-body ds-focus-ring" style="background:transparent;border:none;border-radius:var(--radius-md) var(--radius-md) 0 0;color:var(--text-primary);padding:var(--space-8) var(--space-12);resize:none;outline:none;font-family:var(--font-ui);max-height:180px;overflow-y:auto"></textarea>
+                  <div style="display:flex;align-items:center;gap:var(--space-8);padding:var(--space-4) var(--space-8) var(--space-8)">
+                    <sc-if value="{{ noSpec }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ attachSpec }}" title="Attach a markdown spec" class="ds-label ds-radius-sm" style="background:transparent;border:none;padding:3px var(--space-4);cursor:pointer;color:var(--text-tertiary);display:flex;align-items:center;gap:var(--space-4)" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M13 7.5l-5 5a3.2 3.2 0 0 1-4.5-4.5l5.5-5.5a2.1 2.1 0 0 1 3 3l-5.5 5.5a1 1 0 0 1-1.5-1.5l5-5"></path></svg>Attach a .md spec</button>
+                    </sc-if>
+                    <sc-if value="{{ hasSpec }}" hint-placeholder-val="{{ false }}">
+                      <span class="ds-surface-3 ds-radius-sm ds-label" style="display:flex;align-items:center;gap:var(--space-4);padding:2px var(--space-4) 2px var(--space-8);color:var(--text-secondary)">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 1.5h5.5L13 5v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"></path><path d="M9.5 1.5V5H13"></path></svg>
+                        <span class="ds-code" style="font-size:10px">{{ specName }}</span>
+                        <span onClick="{{ removeSpec }}" title="Remove" style="cursor:pointer;display:flex;padding:2px;color:var(--text-tertiary)" style-hover="color:var(--text-primary)"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"></path></svg></span>
+                      </span>
+                    </sc-if>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:var(--space-12)">
+                  <span class="ds-label ds-text-tertiary" style="flex:1;text-wrap:pretty">One sentence — or a spec file — makes the hints sharper. Never required.</span>
+                  <button onClick="{{ openDiff }}" disabled="{{ cantOpen }}" class="ds-panel-title ds-focus-ring ds-radius-sm" style="background:var(--surface-3);border:1px solid var(--border);padding:6px var(--space-16);cursor:pointer;white-space:nowrap;color:var(--text-primary);opacity:{{ openOpacity }}" style-hover="border-color:var(--text-tertiary)">Open diff</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+    <header class="ds-surface-1" style="height:52px;flex:0 0 52px;display:flex;align-items:center;gap:var(--space-16);padding:0 var(--space-16);border-bottom:1px solid var(--border-subtle)">
+      <div style="display:flex;gap:var(--space-8);flex:0 0 auto">
+        <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;display:block"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;display:block"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#28C840;display:block"></span>
+      </div>
+      <button onClick="{{ toggleSidebar }}" title="{{ sidebarTitle }}" class="ds-radius-sm ds-focus-ring" style="flex:0 0 auto;background:transparent;border:none;padding:4px;cursor:pointer;color:var(--text-tertiary);display:flex" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2.5" width="13" height="11" rx="1.6"></rect><path d="M6 2.5v11" stroke-width="1.3"></path></svg></button>
+      <span style="flex:0 0 auto;display:flex;align-items:center;color:var(--text-primary)" title="Dit Giff"><svg width="22" height="22" viewBox="0 0 1024 1024"><rect x="112.64" y="466.94" width="337.92" height="90.11" rx="45.06" fill="currentColor"></rect><rect x="236.54" y="343.04" width="90.11" height="337.92" rx="45.06" fill="currentColor"></rect><rect x="570.06" y="464.24" width="344.68" height="95.52" rx="47.76" fill="currentColor"></rect></svg></span>
+      <div style="flex:1;display:flex;justify-content:center;min-width:0">
+        <button onClick="{{ backToWelcome }}" title="Back — switch branch or repository" class="ds-surface-3 ds-radius-sm ds-code ds-border-subtle ds-focus-ring" style="display:flex;align-items:center;gap:var(--space-8);padding:4px var(--space-12) 4px var(--space-8);white-space:nowrap;border:1px solid var(--border);cursor:pointer;background:var(--surface-3)" style-hover="border-color:var(--diff-add);background:var(--surface-2)">
+          <span class="ds-text-secondary" style="display:flex;padding-right:2px;border-right:1px solid var(--border);margin-right:var(--space-4)"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3.5L4.5 8l4.5 4.5M4.5 8h8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+          <span class="ds-text-primary">feature/annual-billing</span>
+          <span class="ds-text-tertiary">→</span>
+          <span class="ds-text-primary">main</span>
+        </button>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--space-12);flex:0 0 auto">
+        <span class="ds-label">64 files</span>
+        <span class="ds-code" style="font-size:11px;white-space:nowrap"><span class="ds-diff-add">+3242</span> <span class="ds-diff-del">−347</span></span>
+        <button onClick="{{ toggleTheme }}" title="{{ themeLabel }}" class="ds-focus-ring ds-radius-sm" style="background:transparent;border:1px solid var(--border);padding:5px;cursor:pointer;color:var(--text-secondary);display:flex" style-hover="background:var(--surface-3);color:var(--text-primary)">
+          <sc-if value="{{ isDark }}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M13.5 9.2A5.5 5.5 0 0 1 6.8 2.5a5.5 5.5 0 1 0 6.7 6.7z"></path></svg></sc-if>
+          <sc-if value="{{ isLight }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="3.2"></circle><path d="M8 1v1.6M8 13.4V15M15 8h-1.6M2.6 8H1M12.95 3.05l-1.13 1.13M4.18 11.82l-1.13 1.13M12.95 12.95l-1.13-1.13M4.18 4.18L3.05 3.05" stroke-linecap="round"></path></svg></sc-if>
+        </button>
+      </div>
+    </header>
+    <div style="flex:1;display:flex;min-height:0">
+      <aside data-screen-label="Change map" class="ds-surface-1" style="width:{{ sidebarW }};flex:0 0 {{ sidebarW }};border-right:{{ sidebarBorder }};display:{{ sidebarDisplay }};flex-direction:column;min-height:0;overflow:hidden;transition:width var(--motion-collapse-duration) var(--motion-collapse-easing),flex-basis var(--motion-collapse-duration) var(--motion-collapse-easing)">
+        <div style="padding:var(--space-12);border-bottom:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:var(--space-8)">
+          <div class="ds-code ds-text-secondary" style="font-size:11px;display:flex;gap:var(--space-4);align-items:center;min-width:0">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/annual-billing</span>
+            <span class="ds-text-tertiary" style="flex:0 0 auto">→</span>
+            <span style="flex:0 0 auto">main</span>
+          </div>
+          <div class="ds-label">{{ progressText }}</div>
+          <div style="height:3px;border-radius:2px;background:var(--surface-3);overflow:hidden">
+            <div style="height:100%;background:var(--text-tertiary);border-radius:2px;width:{{ progressPct }};transition:width var(--motion-read-duration) ease-out"></div>
+          </div>
+          <sc-if value="{{ allRead }}" hint-placeholder-val="{{ false }}">
+            <div class="ds-label ds-text-primary">All read — ready to open the MR.</div>
+          </sc-if>
+        </div>
+        <div style="padding:var(--space-8) var(--space-8) 0;display:flex;flex-direction:column;gap:var(--space-8)">
+          <input value="{{ filterValue }}" onChange="{{ onFilter }}" placeholder="Filter files…" class="ds-label ds-focus-ring ds-radius-sm" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary);height:26px;padding:0 var(--space-8);outline:none;font-family:var(--font-ui)">
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:var(--space-8) var(--space-8) var(--space-24)">
+          <sc-if value="{{ viewIntent }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div class="ds-label ds-text-tertiary" style="padding:var(--space-8);text-transform:uppercase;letter-spacing:0.06em">What this change does</div>
+              <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+                <div style="margin-bottom:var(--space-4)">
+                  <div class="ds-radius-sm" onClick="{{ g.toggle }}" title="{{ g.countTitle }}" style="display:flex;align-items:flex-start;cursor:pointer;gap:var(--space-4);padding:var(--space-4) var(--space-8)" style-hover="background:var(--surface-3)">
+                    <span class="ds-text-tertiary" style="width:14px;flex:0 0 14px;height:18px;display:flex;align-items:center;justify-content:center;transform:rotate({{ g.rot }});transition:transform var(--motion-collapse-duration) var(--motion-collapse-easing)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 2.5L8 6l-3.5 3.5"></path></svg></span>
+                    <span class="ds-body ds-text-primary" style="flex:1;min-width:0;text-wrap:pretty">{{ g.name }}</span>
+                  </div>
+                  <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                    <div class="ds-collapse" style="display:flex;flex-direction:column">
+                      <sc-for list="{{ g.files }}" as="f" hint-placeholder-count="4">
+                        <div onClick="{{ f.click }}" class="ds-radius-sm" style="height:32px;display:flex;align-items:center;gap:var(--space-8);padding:0 var(--space-8) 0 26px;cursor:{{ f.cursor }}" style-hover="background:var(--surface-3)">
+                          <span title="{{ f.statusTitle }}" style="width:17px;height:17px;flex:0 0 17px;display:flex;align-items:center;justify-content:center;color:{{ f.statusColor }}"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M4.3 2.3h4.4l2.9 2.9v7.5a1 1 0 0 1-1 1H4.3a1 1 0 0 1-1-1V3.3a1 1 0 0 1 1-1z" fill="currentColor" fill-opacity="0.16"></path><path d="{{ f.glyphD }}" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                          <span style="flex:1;min-width:0;display:flex;align-items:baseline;overflow:hidden" title="{{ f.dir }}{{ f.name }}">
+                            <span class="ds-body ds-text-tertiary" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto">{{ f.dir }}</span>
+                            <span class="ds-body ds-text-primary" style="font-size:13px;white-space:nowrap;flex:0 0 auto">{{ f.shortName }}</span>
+                          </span>
+                          <span class="ds-code ds-diff-add" style="font-size:11px;flex:0 0 auto;min-width:32px;text-align:right">{{ f.adds }}</span>
+                          <span class="ds-code ds-diff-del" style="font-size:11px;flex:0 0 auto;min-width:32px;text-align:right">{{ f.dels }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+              <div style="border-top:1px solid var(--border-subtle);margin:var(--space-12) var(--space-8)"></div>
+              <div class="ds-radius-sm" onClick="{{ toggleNoise }}" style="display:flex;align-items:center;cursor:pointer;gap:var(--space-4);padding:var(--space-4) var(--space-8)" style-hover="background:var(--surface-3)">
+                <span class="ds-text-tertiary" style="width:14px;flex:0 0 14px;height:18px;display:flex;align-items:center;justify-content:center;transform:rotate({{ noiseRot }});transition:transform var(--motion-collapse-duration) var(--motion-collapse-easing)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 2.5L8 6l-3.5 3.5"></path></svg></span>
+                <span class="ds-body ds-text-tertiary" style="flex:1">Noise</span>
+                <span class="ds-label ds-text-tertiary">4 files</span>
+              </div>
+              <sc-if value="{{ noiseOpen }}" hint-placeholder-val="{{ false }}">
+                <div class="ds-collapse" style="display:flex;flex-direction:column">
+                  <sc-for list="{{ noiseItems }}" as="ni" hint-placeholder-count="4">
+                    <div>
+                      <div class="ds-radius-sm" onClick="{{ ni.toggle }}" style="height:28px;display:flex;align-items:center;gap:var(--space-8);padding:0 var(--space-8) 0 26px;cursor:pointer" style-hover="background:var(--surface-3)">
+                        <span class="ds-code ds-text-tertiary" style="flex:1;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ni.name }}</span>
+                        <span class="ds-label ds-text-tertiary" style="flex:0 0 auto">{{ ni.tag }}</span>
+                      </div>
+                      <sc-if value="{{ ni.open }}" hint-placeholder-val="{{ false }}">
+                        <div class="ds-label ds-text-tertiary" style="padding:0 var(--space-8) var(--space-8) 26px;text-wrap:pretty">{{ ni.detail }}</div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ viewFiles }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ treeRows }}" as="tr" hint-placeholder-count="8">
+                <div>
+                  <sc-if value="{{ tr.isDir }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ tr.toggle }}" class="ds-radius-sm" style="height:32px;display:flex;align-items:center;gap:var(--space-4);padding-right:var(--space-8);padding-left:{{ tr.pad }};cursor:pointer" style-hover="background:var(--surface-3)">
+                      <span class="ds-text-tertiary" style="width:14px;flex:0 0 14px;display:flex;align-items:center;justify-content:center;transform:rotate({{ tr.rot }});transition:transform var(--motion-collapse-duration) var(--motion-collapse-easing)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 2.5L8 6l-3.5 3.5"></path></svg></span>
+                      <span class="ds-text-secondary" style="flex:0 0 auto;display:flex"><svg width="17" height="17" viewBox="0 0 16 16"><path d="M1.5 4.5h4.2l1.6 2h7.2v6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z" fill="currentColor" fill-opacity="0.9"></path></svg></span>
+                      <span class="ds-body ds-text-secondary" style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:var(--space-4)">{{ tr.name }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ tr.isFile }}" hint-placeholder-val="{{ false }}">
+                    <div onClick="{{ tr.click }}" class="ds-radius-sm" style="height:32px;display:flex;align-items:center;gap:var(--space-8);padding-right:var(--space-8);padding-left:{{ tr.pad }};cursor:{{ tr.cursor }}" style-hover="background:var(--surface-3)">
+                      <span title="{{ tr.statusTitle }}" style="width:17px;height:17px;flex:0 0 17px;display:flex;align-items:center;justify-content:center;color:{{ tr.statusColor }}"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M4.3 2.3h4.4l2.9 2.9v7.5a1 1 0 0 1-1 1H4.3a1 1 0 0 1-1-1V3.3a1 1 0 0 1 1-1z" fill="currentColor" fill-opacity="0.16"></path><path d="{{ tr.glyphD }}" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                      <span class="ds-body ds-text-primary" style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ tr.name }}</span>
+                      <span class="ds-code ds-diff-add" style="font-size:11px;flex:0 0 auto;min-width:32px;text-align:right">{{ tr.adds }}</span>
+                      <span class="ds-code ds-diff-del" style="font-size:11px;flex:0 0 auto;min-width:32px;text-align:right">{{ tr.dels }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </aside>
+      <main data-screen-label="Diff" ref="{{ centerRef }}" onMouseUp="{{ onDiffMouseUp }}" onMouseDown="{{ clearSel }}" class="ds-surface-0 dg-diff" style="flex:1;min-width:0;overflow-y:auto;position:relative;padding:0 var(--space-24) var(--space-48)">
+        <sc-for list="{{ fileSections }}" as="fs" hint-placeholder-count="3">
+          <section style="padding-top:var(--space-16)">
+            <header class="ds-surface-1 ds-border-subtle ds-radius-md" style="position:sticky;top:var(--space-4);z-index:2;display:flex;align-items:center;gap:var(--space-8);height:48px;padding:0 var(--space-12) 0 var(--space-8)">
+              <span onClick="{{ fs.toggleCollapse }}" class="ds-text-tertiary" style="width:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:rotate({{ fs.rot }});transition:transform var(--motion-collapse-duration) var(--motion-collapse-easing)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 2.5L8 6l-3.5 3.5"></path></svg></span>
+              <span style="flex:1;min-width:0;display:flex;align-items:baseline">
+                <span class="ds-body ds-text-tertiary" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto">{{ fs.dir }}</span>
+                <span class="ds-body ds-text-primary" style="font-size:14px;font-weight:600;white-space:nowrap;flex:0 0 auto">{{ fs.name }}</span>
+              </span>
+              <span style="display:flex;gap:var(--space-4);flex:0 0 auto"><span class="ds-code ds-diff-add" style="font-size:11px">{{ fs.statAdds }}</span><span class="ds-code ds-diff-del" style="font-size:11px">{{ fs.statDels }}</span></span>
+              <button onClick="{{ fs.chatFile }}" title="Explain this file — opens chat" class="ds-radius-sm" style="background:transparent;border:none;padding:6px;cursor:pointer;color:var(--text-tertiary);display:flex" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2" width="11" height="14" rx="1.5"></rect><path d="M4 5.5h6M4 8h6M4 10.5h4" stroke-linecap="round"></path><circle cx="16" cy="6" r="2.3"></circle><path d="M12.5 16.5c0-2.4 1.8-4.3 4-4.3s4 1.9 4 4.3" stroke-linecap="round"></path></svg></button>
+              <button onClick="{{ fs.toggleViewed }}" title="{{ fs.viewedTitle }}" class="ds-radius-sm" style="background:{{ fs.viewedBg }};border:none;padding:6px var(--space-8);cursor:pointer;color:{{ fs.viewedColor }};display:flex;align-items:center;gap:6px" style-hover="color:var(--text-primary);background:var(--surface-3)"><sc-if value="{{ fs.viewed }}" hint-placeholder-val="{{ false }}"><svg width="17" height="17" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="3" fill="currentColor"></rect><path d="M4.8 8.2l2 2 4.4-4.4" fill="none" stroke="var(--surface-1)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if><sc-if value="{{ fs.notViewed }}" hint-placeholder-val="{{ true }}"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2.6"></rect></svg></sc-if><span class="ds-body" style="font-size:13px;font-weight:500">Viewed</span></button>
+            </header>
+            <sc-if value="{{ fs.openBody }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <sc-for list="{{ fs.hunks }}" as="h" hint-placeholder-count="1">
+                  <div style="position:relative">
+
+                    <article id="hunk-{{ h.id }}" class="ds-surface-1 ds-border-subtle ds-radius-md {{ h.cls }}" style="overflow:hidden;margin-top:var(--space-8)" onMouseEnter="{{ h.enter }}" onMouseLeave="{{ h.leave }}">
+                      <header style="height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-8) 0 var(--space-12);border-bottom:1px solid var(--border-subtle)">
+                        <span class="ds-code ds-text-tertiary" style="font-size:11px">{{ h.header }}</span>
+                        <div style="display:flex;align-items:center;gap:var(--space-4);opacity:{{ h.aOp }};pointer-events:{{ h.aPe }}">
+                          <button onClick="{{ h.explain }}" title="Explain this hunk" class="ds-radius-sm" style="background:transparent;border:none;padding:3px;cursor:pointer;color:var(--text-tertiary);display:flex" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4h11M2.5 8h11M2.5 12h6"></path></svg></button>
+                          <button onClick="{{ h.chat }}" title="Chat about this hunk — opens with the explanation already loaded" class="ds-radius-sm" style="background:transparent;border:none;padding:3px;cursor:pointer;color:var(--text-tertiary);display:flex" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8.5L5.5 13.5v-3H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"></path><path d="M4.5 5.5h7M4.5 7.5h4.5"></path></svg></button>
+                          <button onClick="{{ h.toggleRead }}" title="{{ h.readTitle }}" class="ds-radius-sm" style="background:{{ h.readBg }};border:none;padding:2px var(--space-4);cursor:pointer;color:{{ h.readColor }};display:flex;align-items:center;gap:3px" style-hover="color:var(--text-primary);background:var(--surface-3)"><sc-if value="{{ h.read }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="3" fill="currentColor"></rect><path d="M4.8 8.2l2 2 4.4-4.4" fill="none" stroke="var(--surface-1)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if><sc-if value="{{ h.notRead }}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2.6"></rect></svg></sc-if><svg width="13" height="12" viewBox="0 0 18 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 8s2.7-4.6 7.5-4.6S16.5 8 16.5 8s-2.7 4.6-7.5 4.6S1.5 8 1.5 8z"></path><circle cx="9" cy="8" r="2"></circle></svg></button>
+                        </div>
+                      </header>
+                      <div style="padding:var(--space-4) 0;overflow-x:auto">
+                        <sc-for list="{{ h.lines }}" as="ln" hint-placeholder-count="6">
+                          <div class="{{ ln.rowCls }}" data-dg-file="{{ ln.file }}" data-dg-ln="{{ ln.lineNo }}" style="display:flex;min-width:max-content;font-size:13px;line-height:1.55">
+                            <span class="ds-line-number" style="width:36px;flex:0 0 36px;padding-right:var(--space-8)">{{ ln.a }}</span>
+                            <span class="ds-line-number" style="width:28px;flex:0 0 28px;padding-right:var(--space-8)">{{ ln.b }}</span>
+                            <span class="ds-code {{ ln.signCls }}" style="width:16px;flex:0 0 16px;text-align:center;user-select:none">{{ ln.sign }}</span>
+                            <span class="ds-code {{ ln.txtCls }}" style="white-space:pre;padding-right:var(--space-24)"><sc-for list="{{ ln.segs }}" as="sg" hint-placeholder-count="1"><span class="{{ sg.c }}"><sc-for list="{{ sg.toks }}" as="tk" hint-placeholder-count="1"><span class="{{ tk.cls }}">{{ tk.t }}</span></sc-for></span></sc-for></span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </article>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </section>
+        </sc-for>
+      </main>
+      <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+        <div style="position:fixed;top:{{ selTop }};left:{{ selLeft }};transform:translate(-50%,-100%);z-index:50;width:280px" onMouseDown="{{ stopSel }}">
+          <div class="ds-popover ds-radius-md" style="background:var(--surface-2);border:1px solid var(--border);box-shadow:var(--shadow-popover);overflow:hidden">
+            <button onClick="{{ explainSelection }}" class="ds-body ds-text-primary" style="width:100%;box-sizing:border-box;display:flex;align-items:center;gap:var(--space-8);background:transparent;border:none;padding:var(--space-8) var(--space-12);cursor:pointer;text-align:left;white-space:nowrap" style-hover="background:var(--surface-3)">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" style="flex:0 0 auto"><path d="M2.5 4h11M2.5 8h11M2.5 12h6"></path></svg>
+              Explain selection
+            </button>
+            <div style="height:1px;background:var(--border-subtle)"></div>
+            <div style="display:flex;align-items:center;gap:var(--space-8);padding:var(--space-8)">
+              <input value="{{ selQuery }}" onChange="{{ onSelQueryChange }}" onKeyDown="{{ onSelQueryKeyDown }}" autoFocus="{{ true }}" placeholder="Ask something specific…" class="ds-body" style="flex:1;min-width:0;background:var(--surface-1);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:6px var(--space-8);color:var(--text-primary);font-size:13px;outline:none" style-focus="border-color:var(--diff-add)"></input>
+              <button onClick="{{ sendSelQuery }}" title="Send to chat" class="ds-radius-sm" style="background:transparent;border:none;padding:6px;cursor:pointer;color:var(--text-tertiary);display:flex;flex:0 0 auto" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 8h11.5M8.5 3l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+            </div>
+            <div style="padding:0 var(--space-12) var(--space-8)">
+              <span class="ds-label ds-text-tertiary" style="font-size:11px">{{ selCount }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+        <aside data-screen-label="Chat panel" class="ds-surface-1" style="width:340px;flex:0 0 340px;border-left:1px solid var(--border-subtle);display:flex;flex-direction:column;min-height:0;animation:dg-panel-in var(--motion-collapse-duration) var(--motion-collapse-easing)">
+          <header style="flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:var(--space-8);padding:var(--space-8) var(--space-8) var(--space-8) var(--space-12);border-bottom:1px solid var(--border-subtle)">
+            <span class="ds-panel-title" style="min-width:0">Chat</span>
+            <button onClick="{{ closePanel }}" title="Close (Esc)" class="ds-radius-sm" style="flex:0 0 auto;background:transparent;border:none;padding:4px;cursor:pointer;color:var(--text-tertiary);display:flex" style-hover="color:var(--text-primary);background:var(--surface-3)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"></path></svg></button>
+          </header>
+          <div ref="{{ threadRef }}" style="flex:1;overflow-y:auto;padding:var(--space-16) var(--space-12);display:flex;flex-direction:column;gap:var(--space-12)">
+            <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="2">
+              <sc-if value="{{ m.isAgent }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;justify-content:flex-start;padding-left:var(--space-8)">
+                  <div class="ds-surface-2 ds-body ds-text-primary" style="position:relative;max-width:86%;padding:var(--space-8) var(--space-12);border-radius:12px;text-wrap:pretty;display:flex;flex-direction:column;gap:var(--space-8)" style-before="content:'';position:absolute;left:-6px;top:9px;border:6px solid transparent;border-right-color:var(--surface-2)">
+                    <sc-if value="{{ m.hasLoc }}" hint-placeholder-val="{{ false }}">
+                      <span onClick="{{ m.jump }}" class="ds-surface-3 ds-code ds-radius-sm" style="align-self:flex-start;display:flex;align-items:center;gap:var(--space-4);font-size:10px;color:var(--text-secondary);padding:2px var(--space-8);cursor:pointer" style-hover="color:var(--text-primary)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4.3 2.3h4.4l2.9 2.9v7.5a1 1 0 0 1-1 1H4.3a1 1 0 0 1-1-1V3.3a1 1 0 0 1 1-1z"></path></svg>{{ m.loc }}</span>
+                    </sc-if>
+                    <span style="text-wrap:pretty">{{ m.text }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-4);padding-right:var(--space-8)">
+                  <sc-if value="{{ m.hasLoc }}" hint-placeholder-val="{{ false }}">
+                    <span class="ds-surface-2 ds-code" style="display:flex;align-items:center;gap:var(--space-4);font-size:10px;color:var(--text-tertiary);padding:2px var(--space-8);border-radius:999px">{{ m.loc }}</span>
+                  </sc-if>
+                  <div class="ds-surface-3 ds-body ds-text-primary" style="position:relative;max-width:86%;padding:var(--space-8) var(--space-12);border-radius:12px;text-wrap:pretty" style-before="content:'';position:absolute;right:-6px;top:9px;border:6px solid transparent;border-left-color:var(--surface-3)">{{ m.text }}</div>
+                </div>
+              </sc-if>
+            </sc-for>
+            <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;justify-content:flex-start;padding-left:var(--space-8)">
+                <div class="ds-surface-2 ds-label ds-text-secondary" style="position:relative;display:flex;align-items:center;gap:var(--space-8);padding:var(--space-8) var(--space-12);border-radius:12px" style-before="content:'';position:absolute;left:-6px;top:9px;border:6px solid transparent;border-right-color:var(--surface-2)">
+                  <span class="ds-code" style="color:var(--diff-add);width:9px;display:inline-block;text-align:center">{{ thinkGlyph }}</span>
+                  <span>{{ thinkText }}…</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <footer style="flex:0 0 auto;border-top:1px solid var(--border-subtle);padding:var(--space-8);display:flex;flex-direction:column;gap:var(--space-8)">
+            <textarea ref="{{ chatRef }}" onKeyDown="{{ chatKey }}" rows="2" placeholder="Ask about this diff…" class="ds-body ds-focus-ring ds-radius-md" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary);min-height:52px;max-height:120px;padding:var(--space-8) var(--space-12);outline:none;resize:none;font-family:var(--font-ui)"></textarea>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-8)">
+              <label class="ds-surface-2 ds-border-subtle ds-radius-sm" style="display:flex;align-items:center;gap:var(--space-4);padding:2px var(--space-4) 2px var(--space-8)" style-hover="border-color:var(--border)">
+                <span class="ds-label ds-text-tertiary">Model</span>
+                <select value="{{ modelValue }}" onChange="{{ onModel }}" title="Model" class="ds-label ds-focus-ring" style="background:transparent;color:var(--text-primary);border:none;border-radius:var(--radius-sm);height:22px;padding:0 var(--space-4);outline:none;font-family:var(--font-ui);cursor:pointer">
+                  <option value="fable">Fable</option>
+                  <option value="opus5">Opus 5</option>
+                  <option value="sonnet">Sonnet</option>
+                  <option value="haiku">Haiku</option>
+                </select>
+              </label>
+              <label class="ds-surface-2 ds-border-subtle ds-radius-sm" style="display:flex;align-items:center;gap:var(--space-4);padding:2px var(--space-4) 2px var(--space-8)" style-hover="border-color:var(--border)">
+                <span class="ds-label ds-text-tertiary">Reasoning</span>
+                <select value="{{ effortValue }}" onChange="{{ onEffort }}" title="Reasoning effort" class="ds-label ds-focus-ring" style="background:transparent;color:var(--text-primary);border:none;border-radius:var(--radius-sm);height:22px;padding:0 var(--space-4);outline:none;font-family:var(--font-ui);cursor:pointer">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="max">Max</option>
+                </select>
+              </label>
+            </div>
+          </footer>
+        </aside>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;diff-view&quot;,&quot;welcome&quot;,&quot;all-read&quot;,&quot;no-notes&quot;],&quot;default&quot;:&quot;diff-view&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype state&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype state&quot;}}">
+class Component extends DCLogic {
+  state = { scn: null, theme: null, read: null, viewed: null, collapsed: null, panelOpen: false, thread: null, thinking: false, thinkStep: 0, selQuery: '', usedReplies: {}, grpOpen: { 0: true, 1: false, 2: false }, noiseOpen: false, noiseDetail: {}, hover: null, flash: null, view: 'intent', filter: '', treeOpen: {}, repo: null, compare: '', baseBranch: 'main', spec: null, model: 'opus5', effort: 'high', sidebarOpen: true, sel: null };
+  THINK_GLYPHS = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+  THINK_WORDS = ['Thinking','Reading the hunk','Tracing call sites','Weighing the trade-off'];
+  centerRef = React.createRef();
+  chatRef = React.createRef();
+  threadRef = React.createRef();
+  timers = [];
+
+  scnKey() {
+    if (this.state.scn) return this.state.scn;
+    const m = { 'welcome': 'welcome', 'all-read': 'done', 'no-notes': 'quiet' };
+    return m[this.props.scenario] || 'main';
+  }
+  backToWelcome = () => this.setState({ scn: 'welcome', read: null, viewed: null, collapsed: null, panelOpen: false, thread: null, thinking: false, usedReplies: {}, flash: null, hover: null, repo: null, compare: '' });
+  effTheme() { return this.state.theme || this.props.theme || 'dark'; }
+  applyTheme() { document.documentElement.setAttribute('data-theme', this.effTheme()); }
+  componentDidMount() {
+    this.applyTheme();
+    this.escFn = (e) => { if (e.key === 'Escape' && this.state.panelOpen) this.setState({ panelOpen: false }); };
+    document.addEventListener('keydown', this.escFn);
+  }
+  componentDidUpdate(prev) {
+    if (prev.scenario !== this.props.scenario) this.setState({ scn: null, read: null, viewed: null, collapsed: null, panelOpen: false, thread: null, thinking: false, usedReplies: {}, flash: null, hover: null, repo: null, compare: '' });
+    if (prev.theme !== this.props.theme) this.setState({ theme: null });
+    this.applyTheme();
+  }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); if (this.thinkIv) clearInterval(this.thinkIv); document.removeEventListener('keydown', this.escFn); }
+
+  data() {
+    if (this._d) return this._d;
+    const L = (a, b, t, segs) => ({ a, b, t, segs: typeof segs === 'string' ? [{ t: segs, c: '' }] : segs });
+    const hunks = [
+      { id: 'h1', path: 'Sources/Billing/BillingGuard.swift', header: '@@ −139,6 +139,6 @@ func canCharge(_:)', loc: 'BillingGuard.swift:142',
+        expl: 'The limit itself stopped counting as overage: used >= limit used to take the overage path, now only used > limit does. The new test in AnnualBillingTests pins at-limit accounts as chargeable — if that was not the intent, the test is wrong too.',
+        reply: 'Two things worth checking before the MR: whether allowsOverage was ever meant to apply to at-limit accounts, and whether any pricing copy promises usage “up to” the limit. The new test pins at-limit as chargeable — if that is wrong, the test needs to change too.',
+        lines: [
+          L('139','139','c','func canCharge(_ account: Account) -> Bool {'),
+          L('140','140','c','    let limit = account.plan.chargeLimit(for: period)'),
+          L('141','141','c','    let used = account.usage.total(in: period)'),
+          L('142','','d',[{t:'    guard used ',c:''},{t:'>=',c:'ds-diff-del-word'},{t:' limit else { return true }',c:''}]),
+          L('','142','a',[{t:'    guard used ',c:''},{t:'>',c:'ds-diff-add-word'},{t:' limit else { return true }',c:''}]),
+          L('143','143','c','    return account.plan.allowsOverage'),
+          L('144','144','c','}') ] },
+      { id: 'h2', path: 'Sources/Billing/PlanResolver.swift', header: '@@ −55,7 +55,7 @@ enum PlanCatalog', loc: 'PlanResolver.swift:56',
+        expl: 'resolvePlan moved from an optional return to a typed throw. Call sites that used guard let need do/catch now — in this diff, callers use try! or try without a catch.',
+        reply: 'The three call sites are InvoiceScheduler, SubscriptionHandler and WebhookSender. None of them adds a catch in this diff — InvoiceScheduler even uses try!. If notFound is reachable in production data, that is the first place it surfaces.',
+        lines: [
+          L('55','55','c','// Resolve a plan from the local catalog'),
+          L('56','','d',[{t:'func resolvePlan(_ id: PlanID) ',c:''},{t:'-> Plan?',c:'ds-diff-del-word'},{t:' {',c:''}]),
+          L('','56','a',[{t:'func resolvePlan(_ id: PlanID) ',c:''},{t:'throws -> Plan',c:'ds-diff-add-word'},{t:' {',c:''}]),
+          L('57','57','c','    if let plan = catalog.plan(for: id) {'),
+          L('58','58','c','        return plan'),
+          L('59','59','c','    }'),
+          L('60','','d','    return nil'),
+          L('','60','a','    throw PlanError.notFound(id)'),
+          L('61','61','c','}') ] },
+      { id: 'h3', path: 'Sources/Billing/InvoiceScheduler.swift', header: '@@ −201,7 +201,7 @@ func schedule(for:)', loc: 'InvoiceScheduler.swift:202',
+        expl: 'The scheduler force-unwraps with try!. If the plan is missing from the catalog (migrated account, discontinued plan), this crashes the process instead of skipping the invoice like it used to.',
+        reply: 'try! is safe only if every planID in the store is guaranteed to resolve. Migration or plan sunsetting breaks that guarantee — a plain do/catch with a skip keeps the old behavior.',
+        lines: [
+          L('201','201','c','func schedule(for account: Account) {'),
+          L('202','','d','    guard let plan = resolvePlan(account.planID) else { return }'),
+          L('','202','a',[{t:'    let plan = ',c:''},{t:'try!',c:'ds-diff-add-word'},{t:' resolvePlan(account.planID)',c:''}]),
+          L('203','203','c','    let months = plan.billingCycle == .annual ? 12 : 1'),
+          L('204','','d','    let amount = plan.price'),
+          L('','204','a','    let amount = prorate(plan.price, months: months)'),
+          L('205','205','c','    enqueue(Invoice(account: account, amount: amount))'),
+          L('206','206','c','}') ] },
+      { id: 'h8', path: 'Sources/Billing/ProrationCalculator.swift', header: '@@ −8,4 +8,5 @@ func prorate(_:months:)', loc: 'ProrationCalculator.swift:9',
+        expl: 'prorate now guards against months <= 0 and multiplies before dividing, avoiding rounding twice with Decimal.',
+        reply: 'The old code divided first, so annual prices under 12 currency units rounded to zero per month. Multiplying first fixes that; the months guard covers a zero-month edge that should not happen but now cannot.',
+        lines: [
+          L('8','8','c','func prorate(_ price: Decimal, months: Int) -> Decimal {'),
+          L('9','','d','    return price / 12'),
+          L('','9','a','    guard months > 0 else { return price }'),
+          L('','10','a','    return (price * Decimal(months)) / 12'),
+          L('10','11','c','}') ] },
+      { id: 'h4', path: 'Sources/API/SubscriptionHandler.swift', header: '@@ −87,11 +87,5 @@ func update(_:)', loc: 'SubscriptionHandler.swift:88',
+        expl: 'Validation left the handler. The endpoint now relies on Subscription.apply throwing the same errors — but the order changed: store.subscription runs before validation, so an unknown id returns 404 where it used to return 422.',
+        reply: 'If API clients depend on the 422-before-404 order, this is a behavior change. Easiest defense in the MR: state it explicitly and point at the model-level tests covering both errors.',
+        lines: [
+          L('87','87','c','func update(_ req: UpdateRequest) throws -> Response {'),
+          L('88','','d','    guard req.plan.isValid else {'),
+          L('89','','d','        throw ValidationError.invalidPlan'),
+          L('90','','d','    }'),
+          L('91','','d','    guard req.seats > 0 else {'),
+          L('92','','d','        throw ValidationError.noSeats'),
+          L('93','','d','    }'),
+          L('94','88','c','    let sub = try store.subscription(req.id)'),
+          L('95','','d','    sub.apply(req)'),
+          L('','89','a',[{t:'    ',c:''},{t:'try',c:'ds-diff-add-word'},{t:' sub.apply(req)',c:''}]),
+          L('96','90','c','    return .ok(sub)'),
+          L('97','91','c','}') ] },
+      { id: 'h5', path: 'Sources/Models/Subscription.swift', header: '@@ −40,5 +40,8 @@ struct Subscription', loc: 'Subscription.swift:42',
+        expl: 'The guards were recreated inside the model, which covers call sites beyond the handler. The new throws propagates to every apply call site.',
+        reply: 'Moving guards into apply means every future caller gets them for free. The cost is that ValidationError now escapes from a model type — check no caller matches on the error origin.',
+        lines: [
+          L('40','40','c','    var plan: Plan'),
+          L('41','','d','    mutating func apply(_ req: UpdateRequest) {'),
+          L('','41','a',[{t:'    mutating func apply(_ req: UpdateRequest) ',c:''},{t:'throws',c:'ds-diff-add-word'},{t:' {',c:''}]),
+          L('','42','a','        guard req.plan.isValid else { throw ValidationError.invalidPlan }'),
+          L('','43','a','        guard req.seats > 0 else { throw ValidationError.noSeats }'),
+          L('42','44','c','        self.plan = req.plan'),
+          L('43','45','c','        self.seats = req.seats'),
+          L('44','46','c','    }') ] },
+      { id: 'h6', path: 'Sources/HTTP/APIClient.swift', header: '@@ −12,9 +12,5 @@ final class APIClient', loc: 'APIClient.swift:12',
+        expl: 'A direct swap of URLSession for the new HTTPClient: the callback becomes async/await and the response body is read from .body. Network-error handling now comes from the client, not the dataTask.',
+        reply: 'The new client owns retries and error mapping, so this file loses its continuation boilerplate. The behavior question is timeouts: URLSession default was 60s — confirm HTTPClient .default matches what production expects.',
+        lines: [
+          L('12','','d','private let session = URLSession.shared'),
+          L('','12','a','private let client = HTTPClient(configuration: .default)'),
+          L('13','13','c',''),
+          L('14','14','c','func fetch(_ request: APIRequest) async throws -> Data {'),
+          L('15','','d','    await withCheckedContinuation { cont in'),
+          L('16','','d','        session.dataTask(with: request.urlRequest) { data, _, _ in'),
+          L('17','','d','            cont.resume(returning: data ?? Data())'),
+          L('18','','d','        }.resume()'),
+          L('19','','d','    }'),
+          L('','15','a','    try await client.send(request).body'),
+          L('20','16','c','}') ] },
+      { id: 'h7', path: 'Tests/BillingTests/AnnualBillingTests.swift', header: '@@ −0,0 +1,9 @@', loc: 'AnnualBillingTests.swift:6',
+        expl: 'A regression test that pins the exact-limit decision: an account .atLimit must stay chargeable. It is the anchor for answering “was that intentional?” in review.',
+        reply: 'This test is the answer to the >= note: it documents at-limit-still-charges as a decision, not an accident. Reference it in the MR description.',
+        lines: [
+          L('','1','a','import XCTest'),
+          L('','2','a','@testable import Billing'),
+          L('','3','a',''),
+          L('','4','a','final class AnnualBillingTests: XCTestCase {'),
+          L('','5','a','    func testAccountAtExactLimitStillCharges() {'),
+          L('','6','a','        let account = Account.fixture(plan: .annual, usage: .atLimit)'),
+          L('','7','a','        XCTAssertTrue(BillingGuard().canCharge(account))'),
+          L('','8','a','    }'),
+          L('','9','a','}') ] } ];
+    const FILES = [
+      ['Sources/API/SubscriptionHandler.swift','M',1,7,'h4'],
+      ['Sources/Billing/BillingConfig.swift','M',14,2,null],
+      ['Sources/Billing/BillingGuard.swift','M',1,1,'h1'],
+      ['Sources/Billing/InvoiceScheduler.swift','M',2,2,'h3'],
+      ['Sources/Billing/PlanResolver.swift','M',2,2,'h2'],
+      ['Sources/Billing/ProrationCalculator.swift','M',2,1,'h8'],
+      ['Sources/HTTP/APIClient.swift','M',2,6,'h6'],
+      ['Sources/HTTP/AuthInterceptor.swift','M',19,41,null],
+      ['Sources/HTTP/AvatarLoader.swift','R',5,9,null],
+      ['Sources/HTTP/HTTPClientCore.swift','A',214,0,null],
+      ['Sources/HTTP/LegacyRequestSigner.swift','D',0,118,null],
+      ['Sources/HTTP/PaymentGateway.swift','M',24,31,null],
+      ['Sources/HTTP/ReceiptFetcher.swift','M',9,14,null],
+      ['Sources/HTTP/RequestBuilder.swift','M',38,24,null],
+      ['Sources/HTTP/RetryPolicy.swift','A',52,0,null],
+      ['Sources/HTTP/SyncService.swift','M',31,27,null],
+      ['Sources/HTTP/WebhookSender.swift','M',11,16,null],
+      ['Sources/Legacy/LegacyImporter.swift','M',412,412,null],
+      ['Sources/Models/Subscription.swift','M',3,1,'h5'],
+      ['Package.resolved','M',96,96,null],
+      ['Tests/BillingTests/AnnualBillingTests.swift','A',9,0,'h7'],
+      ['Tests/BillingTests/APIClientTests.swift','M',56,34,null],
+      ['Tests/BillingTests/BillingGuardTests.swift','M',41,6,null],
+      ['Tests/BillingTests/InvoiceSchedulerTests.swift','M',24,9,null],
+      ['Tests/BillingTests/MigrationSmokeTests.swift','A',22,0,null],
+      ['Tests/BillingTests/PlanResolverTests.swift','M',38,12,null],
+      ['Tests/BillingTests/ProrationTests.swift','A',27,0,null],
+      ['Tests/BillingTests/RetryPolicyTests.swift','A',48,0,null],
+      ['Tests/BillingTests/SubscriptionHandlerTests.swift','M',19,22,null],
+      ['Tests/__Snapshots__/InvoiceView@2x.png','M',0,0,null],
+      ['Tests/__Snapshots__/PlanPicker@2x.png','M',0,0,null]
+    ].map(([path, status, adds, dels, hunk]) => {
+      const i = path.lastIndexOf('/');
+      return { path, status, adds, dels, hunk, dir: i < 0 ? '' : path.slice(0, i + 1), name: i < 0 ? path : path.slice(i + 1) };
+    });
+    const byName = {}; FILES.forEach(f => { byName[f.name] = f; });
+    const groups = [
+      { name: 'Billing now honors annual plans', members: ['BillingGuard.swift','PlanResolver.swift','InvoiceScheduler.swift','ProrationCalculator.swift','SubscriptionHandler.swift','Subscription.swift','BillingConfig.swift'] },
+      { name: 'Migration off the legacy HTTP client', members: ['APIClient.swift','HTTPClientCore.swift','RequestBuilder.swift','AuthInterceptor.swift','RetryPolicy.swift','WebhookSender.swift','PaymentGateway.swift','ReceiptFetcher.swift','SyncService.swift','LegacyRequestSigner.swift','AvatarLoader.swift','SubscriptionHandler.swift'] },
+      { name: 'Regression tests', members: ['AnnualBillingTests.swift','BillingGuardTests.swift','PlanResolverTests.swift','ProrationTests.swift','SubscriptionHandlerTests.swift','InvoiceSchedulerTests.swift','APIClientTests.swift','RetryPolicyTests.swift','MigrationSmokeTests.swift'] } ];
+    const noise = [
+      { name: 'Package.resolved', tag: 'lockfile', detail: '96 lines regenerated by SPM — no direct dependency changed.' },
+      { name: '__Snapshots__/InvoiceView@2x.png', tag: 'generated', detail: 'Snapshot regenerated by the UI test run.' },
+      { name: '__Snapshots__/PlanPicker@2x.png', tag: 'generated', detail: 'Snapshot regenerated by the UI test run.' },
+      { name: 'LegacyImporter.swift', tag: 'formatting', detail: '412 lines touched, all reindentation — no semantic change.' } ];
+    const notes = {
+      h1: 'The billing check in BillingGuard.swift:142 changed from >= to >. Accounts exactly at their plan limit now fall on the other side of the guard. Was that intentional?',
+      h2: 'resolvePlan() used to return nil when the plan was not found; it now throws. Three call sites in this diff handle the return — none of them catch the exception.',
+      h4: 'Why did validation move from the handler to the model? A reviewer will ask whether this changes the order of errors returned by the API.' };
+    const hunkById = {}; hunks.forEach(h => { hunkById[h.id] = h; });
+    const sectionPaths = ['Sources/Billing/BillingGuard.swift','Sources/Billing/PlanResolver.swift','Sources/Billing/InvoiceScheduler.swift','Sources/Billing/ProrationCalculator.swift','Sources/API/SubscriptionHandler.swift','Sources/Models/Subscription.swift','Sources/HTTP/APIClient.swift','Tests/BillingTests/AnnualBillingTests.swift'];
+    const repos = [
+      { name: 'billing-service', path: '~/Code/billing-service', branch: 'feature/annual-billing' },
+      { name: 'dit-giff', path: '~/Code/dit-giff', branch: 'main' },
+      { name: 'swift-metrics', path: '~/OSS/swift-metrics', branch: 'develop' } ];
+    const counts = { 'feature/annual-billing': '64 files · +3242 −347', 'feature/http-migration': '31 files · +1180 −904', 'fix/decimal-rounding': '3 files · +41 −12', 'develop': '112 files · +5820 −3311' };
+    this._d = { hunks, hunkById, FILES, byName, groups, noise, notes, sectionPaths, repos, counts,
+      statusTitles: { M: 'Modified', A: 'Added', D: 'Deleted', R: 'Renamed' },
+      kindLabels: { note: 'Analysis note', explain: 'Explanation', chat: 'Conversation' } };
+    return this._d;
+  }
+
+  viewedDefault(scn) {
+    const d = this.data();
+    if (scn === 'done') return Object.fromEntries(d.sectionPaths.map(p => [p, true]));
+    return { 'Sources/HTTP/APIClient.swift': true, 'Tests/BillingTests/AnnualBillingTests.swift': true };
+  }
+  effViewed() { return this.state.viewed || this.viewedDefault(this.scnKey()); }
+  effCollapsed() { return this.state.collapsed || { ...this.effViewed() }; }
+
+  jump = (id) => {
+    const d = this.data();
+    const path = d.hunkById[id] && d.hunkById[id].path;
+    const go = () => {
+      const el = document.getElementById('hunk-' + id);
+      const c = this.centerRef.current;
+      if (el && c) {
+        const top = el.getBoundingClientRect().top - c.getBoundingClientRect().top + c.scrollTop - 48;
+        c.scrollTo({ top, behavior: 'smooth' });
+      }
+      this.setState({ flash: id });
+      this.timers.push(setTimeout(() => this.setState(s => s.flash === id ? { flash: null } : null), 800));
+    };
+    if (path && this.effCollapsed()[path]) {
+      this.setState({ collapsed: { ...this.effCollapsed(), [path]: false } });
+      this.timers.push(setTimeout(go, 80));
+    } else go();
+  };
+
+  startThinking(reply, extra, loc, hunkId) {
+    if (this.thinkIv) clearInterval(this.thinkIv);
+    this.setState({ thinking: true, thinkStep: 0 });
+    this.thinkIv = setInterval(() => this.setState(s => ({ thinkStep: s.thinkStep + 1 })), 130);
+    const delay = 950 + Math.random() * 950;
+    this.timers.push(setTimeout(() => {
+      if (this.thinkIv) { clearInterval(this.thinkIv); this.thinkIv = null; }
+      this.setState(s => ({ thinking: false, thread: s.thread ? { ...s.thread, msgs: [...s.thread.msgs, { who: 'agent', text: reply, loc: loc || null, hunkId: hunkId || null }] } : s.thread, ...(extra || {}) }),
+        () => { const t = this.threadRef.current; if (t) t.scrollTop = t.scrollHeight; });
+    }, delay));
+  }
+  openShortcut(hunkId, agentText) {
+    const h = this.data().hunkById[hunkId];
+    this.setState(s => ({ thread: s.thread || { msgs: [] }, panelOpen: true }));
+    this.startThinking(agentText, null, h ? h.loc : null, hunkId);
+  }
+  openExplain = (id) => { const h = this.data().hunkById[id]; this.openShortcut(id, h.expl); };
+  openNote = (id) => { const d = this.data(); this.openShortcut(id, d.notes[id]); };
+  openChat = (id) => {
+    const h = id ? this.data().hunkById[id] : null;
+    if (h) { this.openShortcut(id, h.expl); if (this.chatRef.current) this.chatRef.current.focus(); return; }
+    this.setState({ thread: this.state.thread || { msgs: [{ who: 'agent', text: 'Ask about any file or hunk in this diff — I keep the whole repository in context.' }] }, panelOpen: true }, () => { if (this.chatRef.current) this.chatRef.current.focus(); });
+  };
+
+  onDiffMouseUp = () => {
+    const sel = window.getSelection();
+    const main = this.centerRef.current;
+    if (!sel || sel.isCollapsed || !main) { if (this.state.sel) this.setState({ sel: null }); return; }
+    const text = sel.toString();
+    if (!text.trim()) { if (this.state.sel) this.setState({ sel: null }); return; }
+    let node = sel.anchorNode;
+    if (node && node.nodeType === 3) node = node.parentNode;
+    if (!node || !main.contains(node)) return;
+    let file = null, mn = Infinity, mx = -Infinity, count = 0;
+    main.querySelectorAll('[data-dg-ln]').forEach(el => {
+      if (sel.containsNode(el, true)) {
+        const ln = parseInt(el.getAttribute('data-dg-ln'), 10);
+        if (!isNaN(ln)) { if (!file) file = el.getAttribute('data-dg-file'); mn = Math.min(mn, ln); mx = Math.max(mx, ln); count++; }
+      }
+    });
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect || !rect.width) return;
+    const loc = file ? (mx > mn ? file + ':' + mn + '–' + mx : file + ':' + mn) : null;
+    const lines = count || ((text.match(/\n/g) || []).length + 1);
+    this.setState({ sel: { text, loc, lines, top: rect.top - 6, left: Math.max(90, Math.min(rect.left + rect.width / 2, window.innerWidth - 110)) } });
+  };
+  clearSel = () => { if (this.state.sel) this.setState({ sel: null, selQuery: '' }); };
+  onSelQueryChange = (e) => this.setState({ selQuery: e.target.value });
+  onSelQueryKeyDown = (e) => { if (e.key === 'Enter') { e.preventDefault(); this.sendSelQuery(); } };
+  sendSelQuery = () => {
+    const sel = this.state.sel;
+    if (!sel) return;
+    const q = (this.state.selQuery || '').trim();
+    if (!q) { this.explainSelection(); return; }
+    const loc = sel.loc || ('Selection · ' + sel.lines + (sel.lines > 1 ? ' lines' : ' line'));
+    if (window.getSelection) window.getSelection().removeAllRanges();
+    this.setState(s => {
+      const thread = s.thread || { msgs: [] };
+      return { sel: null, selQuery: '', thread: { ...thread, msgs: [...thread.msgs, { who: 'user', text: q, loc }] }, panelOpen: true };
+    }, () => { const t = this.threadRef.current; if (t) t.scrollTop = t.scrollHeight; });
+    this.startThinking('Looking at ' + loc + ' — ' + q.slice(0, 1).toLowerCase() + q.slice(1).replace(/\?$/, '') + ': the short answer is it depends on whether the surrounding call sites already guard for it. Want me to check the callers?', null, null, null);
+  };
+  explainSelection = () => {
+    const sel = this.state.sel;
+    if (!sel) return;
+    const n = sel.lines;
+    const count = n + (n > 1 ? ' lines' : ' line');
+    if (window.getSelection) window.getSelection().removeAllRanges();
+    const reply = 'The ' + count + ' you selected read the plan and force-unwrap the result with try!. If resolvePlan throws — a migrated account or a discontinued plan — this path crashes instead of skipping the invoice. The safe rewrite is a do/catch that logs and returns, which matches the guard-let behavior this replaced.';
+    this.setState({ sel: null, thread: this.state.thread || { msgs: [] }, panelOpen: true });
+    this.startThinking(reply, null, sel.loc || ('Selection · ' + count), null);
+  };
+
+  chatKey = (e) => {
+    if (e.key !== 'Enter') return;
+    const text = e.target.value.trim();
+    if (!text) return;
+    e.target.value = '';
+    const d = this.data();
+    this.setState(s => {
+      const thread = s.thread || { hunkId: null, loc: 'feature/annual-billing → main', msgs: [] };
+      return { thread: { ...thread, msgs: [...thread.msgs, { who: 'user', text }] }, panelOpen: true };
+    }, () => {
+      const t = this.threadRef.current; if (t) t.scrollTop = t.scrollHeight;
+      const hid = this.state.thread && this.state.thread.hunkId;
+      let reply, extra = {};
+      if (hid && !this.state.usedReplies[hid]) { reply = d.hunkById[hid].reply; extra = { usedReplies: { ...this.state.usedReplies, [hid]: true } }; }
+      else reply = 'Noted. I would put that in the MR description — a reviewer will ask either way.';
+      this.startThinking(reply, extra);
+    });
+  };
+
+  tokenize(text) {
+    if (!text) return [{ t: '', cls: '' }];
+    const KW = this._kw || (this._kw = new Set(['func','let','var','guard','return','throw','throws','rethrows','try','if','else','enum','struct','class','final','mutating','import','in','for','while','repeat','async','await','case','switch','self','nil','true','false','init','deinit','private','public','internal','fileprivate','open','static','extension','protocol','where','as','is','defer','do','catch','typealias','associatedtype','some','any','lazy','weak','unowned','override','convenience','required','subscript','get','set','willSet','didSet']));
+    const out = [];
+    const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|(\b\d[\d_]*(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)|(\s+)|([^\sA-Za-z0-9_]+)/g;
+    let m;
+    while ((m = re.exec(text))) {
+      if (m[1]) out.push({ t: m[1], cls: 'sx-com' });
+      else if (m[2]) out.push({ t: m[2], cls: 'sx-str' });
+      else if (m[3]) out.push({ t: m[3], cls: 'sx-num' });
+      else if (m[4]) {
+        const w = m[4];
+        let cls = '';
+        if (KW.has(w)) cls = 'sx-key';
+        else if (/^[A-Z]/.test(w)) cls = 'sx-type';
+        else if (/^\s*\(/.test(text.slice(re.lastIndex))) cls = 'sx-fn';
+        out.push({ t: w, cls });
+      }
+      else if (m[5]) out.push({ t: m[5], cls: '' });
+      else out.push({ t: m[6], cls: 'sx-punc' });
+    }
+    return out.length ? out : [{ t: text, cls: '' }];
+  }
+
+  renderVals() {
+    const d = this.data();
+    const scn = this.scnKey();
+    const isWelcome = scn === 'welcome';
+    const viewed = this.effViewed();
+    const collapsed = this.effCollapsed();
+    const read = this.state.read || {};
+    const isRead = (id) => viewed[d.hunkById[id].path] ? true : !!read[id];
+    const base = scn === 'done' ? 39 : 16;
+    const readCount = base + d.hunks.filter(h => isRead(h.id)).length;
+    const allRead = readCount >= 47;
+    const filter = this.state.filter.trim().toLowerCase();
+    const match = (f) => !filter || f.path.toLowerCase().includes(filter);
+    const midTrunc = (n, max) => {
+      if (n.length <= max) return n;
+      const dot = n.lastIndexOf('.');
+      const ext = dot > 0 ? n.slice(dot) : '';
+      const stem = dot > 0 ? n.slice(0, dot) : n;
+      const keep = Math.max(4, max - ext.length - 1);
+      return stem.slice(0, Math.ceil(keep / 2)) + '…' + stem.slice(stem.length - Math.floor(keep / 2)) + ext;
+    };
+    const fileRow = (f) => ({
+      dir: f.dir, name: f.name, shortName: midTrunc(f.name, 14), status: f.status, statusTitle: d.statusTitles[f.status],
+      statusColor: f.status === 'A' ? 'var(--diff-add)' : f.status === 'D' ? 'var(--diff-del)' : 'var(--text-secondary)',
+      glyphD: { A: 'M7.35 5.8v4.4 M5.15 8h4.4', D: 'M5.15 8h4.4', M: 'M5.15 6.9h4.4 M5.15 9.1h4.4', R: 'M5 8h3.4 M7.1 6.3 8.9 8 7.1 9.7' }[f.status] || 'M5.15 6.9h4.4 M5.15 9.1h4.4',
+      adds: f.adds ? '+' + f.adds : '', dels: f.dels ? '−' + f.dels : '',
+      cursor: f.hunk ? 'pointer' : 'default',
+      click: f.hunk ? () => this.jump(f.hunk) : () => {} });
+    const groups = d.groups.map((g, i) => {
+      const files = g.members.map(n => d.byName[n]).filter(f => f && match(f)).map(fileRow);
+      return {
+        name: (i + 1) + '. ' + g.name,
+        countTitle: g.members.length + ' files',
+        open: filter ? files.length > 0 : !!this.state.grpOpen[i],
+        rot: (filter ? files.length > 0 : this.state.grpOpen[i]) ? '90deg' : '0deg',
+        toggle: () => this.setState(s => ({ grpOpen: { ...s.grpOpen, [i]: !s.grpOpen[i] } })),
+        files };
+    }).filter(g => !filter || g.files.length > 0);
+    const noiseItems = d.noise.map((n, i) => ({
+      name: n.name, tag: n.tag, detail: n.detail,
+      open: !!this.state.noiseDetail[i],
+      toggle: () => this.setState(s => ({ noiseDetail: { ...s.noiseDetail, [i]: !s.noiseDetail[i] } })) }));
+    const treeRows = [];
+    const dirs = {};
+    d.FILES.filter(match).forEach(f => {
+      const parts = f.path.split('/');
+      let acc = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        acc += parts[i] + '/';
+        if (!dirs[acc]) { dirs[acc] = { path: acc, name: parts[i], depth: i, files: [] }; }
+      }
+      (f.dir ? dirs[f.dir].files : (dirs[''] = dirs[''] || { files: [] }).files).push(f);
+    });
+    const dirOpen = (p) => filter ? true : this.state.treeOpen[p] !== false;
+    const walk = (prefix, depth) => {
+      Object.values(dirs).filter(x => x.path && x.path.startsWith(prefix) && x.depth === depth && (prefix === '' || x.path.indexOf(prefix) === 0) && x.path.slice(prefix.length).split('/').filter(Boolean).length === 1).forEach(dir => {
+        treeRows.push({ isDir: true, isFile: false, name: dir.name, pad: (8 + dir.depth * 16) + 'px',
+          rot: dirOpen(dir.path) ? '90deg' : '0deg',
+          toggle: () => this.setState(s => ({ treeOpen: { ...s.treeOpen, [dir.path]: !(s.treeOpen[dir.path] !== false) } })) });
+        if (dirOpen(dir.path)) {
+          walk(dir.path, depth + 1);
+          dir.files.forEach(f => treeRows.push({ isDir: false, isFile: true, ...fileRow(f), pad: (8 + (dir.depth + 1) * 16) + 'px' }));
+        }
+      });
+      if (prefix === '' && dirs['']) dirs[''].files.forEach(f => treeRows.push({ isDir: false, isFile: true, ...fileRow(f), pad: '8px' }));
+    };
+    walk('', 0);
+    const fileSections = d.sectionPaths.map(p => {
+      const f = d.FILES.find(x => x.path === p);
+      const isCollapsed = !!collapsed[p];
+      return {
+        dir: f.dir, name: f.name,
+        statAdds: f.adds ? '+' + f.adds : '',
+        statDels: f.dels ? '−' + f.dels : '',
+        rot: isCollapsed ? '0deg' : '90deg',
+        openBody: !isCollapsed,
+        toggleCollapse: () => this.setState({ collapsed: { ...collapsed, [p]: !isCollapsed } }),
+        viewed: !!viewed[p], notViewed: !viewed[p],
+        viewedColor: viewed[p] ? 'var(--text-primary)' : 'var(--text-tertiary)',
+        viewedBg: viewed[p] ? 'var(--surface-3)' : 'transparent',
+        viewedTitle: viewed[p] ? 'Viewed — click to unmark' : 'Mark as viewed',
+        toggleViewed: () => { const v = !viewed[p]; this.setState({ viewed: { ...viewed, [p]: v }, collapsed: { ...collapsed, [p]: v } }); },
+        chatFile: () => this.openChat(f.hunk),
+        hunks: [f.hunk].map(id => {
+          const h = d.hunkById[id];
+          const r = isRead(id);
+          const hov = this.state.hover === id;
+          return {
+            id, header: h.header,
+            cls: (r ? 'ds-read ' : '') + (this.state.flash === id ? 'ds-flash' : ''),
+            marker: scn !== 'quiet' && !!d.notes[id],
+            openNote: () => this.openNote(id),
+            aOp: hov ? '1' : '0', aPe: hov ? 'auto' : 'none',
+            read: r, notRead: !r,
+            readColor: r ? 'var(--text-primary)' : 'var(--text-tertiary)',
+            readBg: r ? 'var(--surface-3)' : 'transparent',
+            readTitle: r ? 'Read — click to unmark' : 'Mark as read',
+            toggleRead: () => this.setState({ read: { ...read, [id]: !r }, viewed: viewed[p] && r ? { ...viewed, [p]: false } : viewed }),
+            enter: () => this.setState({ hover: id }),
+            leave: () => this.setState(s => s.hover === id ? { hover: null } : null),
+            explain: () => this.openExplain(id),
+            chat: () => this.openChat(id),
+            lines: h.lines.map(ln => ({
+              a: ln.a, b: ln.b, file: f.name, lineNo: (ln.b !== '' ? ln.b : ln.a),
+              sign: ln.t === 'a' ? '+' : ln.t === 'd' ? '-' : '',
+              signCls: ln.t === 'a' ? 'ds-diff-add' : ln.t === 'd' ? 'ds-diff-del' : '',
+              rowCls: ln.t === 'a' ? 'ds-diff-add-line' : ln.t === 'd' ? 'ds-diff-del-line' : '',
+              txtCls: ln.t === 'c' ? 'ds-text-secondary' : 'ds-text-primary',
+              segs: ln.segs.map(s => ({ c: s.c, toks: this.tokenize(s.t) })) }))
+          };
+        })
+      };
+    });
+    const thread = this.state.thread;
+    const msgs = thread ? thread.msgs.map(m => ({
+      text: m.text, isUser: m.who === 'user', isAgent: m.who !== 'user',
+      hasLoc: !!m.loc, loc: m.loc || '',
+      jump: m.hunkId ? () => this.jump(m.hunkId) : () => {} })) : [];
+    const view = 'files';
+    return {
+      isWelcome, isMain: !isWelcome,
+      noRepo: !this.state.repo, hasRepo: !!this.state.repo,
+      repos: d.repos.map((r, i) => ({ ...r, borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)', pick: () => this.setState({ repo: r, compare: r.branch === 'main' ? '' : r.branch }) })),
+      openRepo: () => this.setState({ repo: d.repos[0], compare: d.repos[0].branch }),
+      dragOver: (e) => e.preventDefault(),
+      dropRepo: (e) => { e.preventDefault(); this.setState({ repo: d.repos[0], compare: d.repos[0].branch }); },
+      changeRepo: () => this.setState({ repo: null, compare: '' }),
+      repoName: this.state.repo ? this.state.repo.name : '',
+      repoPath: this.state.repo ? this.state.repo.path : '',
+      compareValue: this.state.compare,
+      onCompare: (e) => this.setState({ compare: e.target.value }),
+      baseValue: this.state.baseBranch,
+      onBase: (e) => this.setState({ baseBranch: e.target.value }),
+      showCount: !!this.state.compare,
+      countText: d.counts[this.state.compare] || '—',
+      growGoal: (e) => { const t = e.target; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 180) + 'px'; },
+      noSpec: !this.state.spec, hasSpec: !!this.state.spec,
+      specName: this.state.spec || '',
+      attachSpec: () => this.setState({ spec: 'annual-billing-spec.md' }),
+      removeSpec: () => this.setState({ spec: null }),
+      cantOpen: !this.state.compare,
+      openOpacity: this.state.compare ? '1' : '0.5',
+      openDiff: () => { if (this.state.compare) this.setState({ scn: 'main' }); },
+      sidebarW: this.state.sidebarOpen ? '280px' : '0px',
+      sidebarBorder: this.state.sidebarOpen ? '1px solid var(--border-subtle)' : 'none',
+      sidebarDisplay: this.state.sidebarOpen ? 'flex' : 'none',
+      sidebarTitle: this.state.sidebarOpen ? 'Hide change map' : 'Show change map',
+      toggleSidebar: () => this.setState(s => ({ sidebarOpen: !s.sidebarOpen })),
+      themeLabel: this.effTheme() === 'dark' ? 'Light mode' : 'Dark mode',
+      isDark: this.effTheme() === 'dark', isLight: this.effTheme() !== 'dark',
+      toggleTheme: () => this.setState({ theme: this.effTheme() === 'dark' ? 'light' : 'dark' }, () => this.applyTheme()),
+      progressText: readCount + ' of 47 hunks read',
+      progressPct: Math.round(readCount / 47 * 100) + '%',
+      allRead,
+      viewIntent: false, viewFiles: true,
+      filterValue: this.state.filter,
+      onFilter: (e) => this.setState({ filter: e.target.value }),
+      groups, noiseItems, treeRows,
+      noiseOpen: this.state.noiseOpen,
+      noiseRot: this.state.noiseOpen ? '90deg' : '0deg',
+      toggleNoise: () => this.setState(s => ({ noiseOpen: !s.noiseOpen })),
+      fileSections, centerRef: this.centerRef, chatRef: this.chatRef, threadRef: this.threadRef,
+      backToWelcome: this.backToWelcome,
+      hasSel: !!this.state.sel,
+      selTop: this.state.sel ? this.state.sel.top + 'px' : '0px',
+      selLeft: this.state.sel ? this.state.sel.left + 'px' : '0px',
+      selCount: this.state.sel ? (this.state.sel.loc || (this.state.sel.lines + (this.state.sel.lines > 1 ? ' lines' : ' line'))) : '',
+      selQuery: this.state.selQuery,
+      onSelQueryChange: this.onSelQueryChange,
+      onSelQueryKeyDown: this.onSelQueryKeyDown,
+      sendSelQuery: this.sendSelQuery,
+      onDiffMouseUp: this.onDiffMouseUp,
+      clearSel: this.clearSel,
+      stopSel: (e) => e.stopPropagation(),
+      explainSelection: this.explainSelection,
+      panelOpen: this.state.panelOpen && !!thread,
+      closePanel: () => this.setState({ panelOpen: false }),
+      msgs, chatKey: this.chatKey,
+      thinking: this.state.thinking,
+      thinkGlyph: this.THINK_GLYPHS[this.state.thinkStep % this.THINK_GLYPHS.length],
+      thinkText: this.THINK_WORDS[Math.floor(this.state.thinkStep / 6) % this.THINK_WORDS.length],
+      modelValue: this.state.model,
+      onModel: (e) => this.setState({ model: e.target.value }),
+      effortValue: this.state.effort,
+      onEffort: (e) => this.setState({ effort: e.target.value })
+    };
+  }
+}
+</script>
+</body>
+</html>

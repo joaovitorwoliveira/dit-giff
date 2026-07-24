@@ -1,2 +1,19 @@
 /.claude
 /.maestri
+
+# macOS
+.DS_Store
+
+# Xcode: artefatos de build e estado de UI por usuario
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.hmap
+*.dSYM.zip
+
+# Swift Package Manager
+# Package.resolved fica versionado de proposito: trava as versoes das dependencias
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/

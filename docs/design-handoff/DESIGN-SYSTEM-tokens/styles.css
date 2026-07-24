@@ -1,0 +1,192 @@
+/* Dit Giff — design system entry point.
+   Everything the system offers is reachable from this file's @import closure.
+
+   Source of truth: docs/product/DESIGN-SYSTEM.md in the dit-giff repo.
+   This is a spec-derived system: there is no compiled component library yet.
+   What you get is tokens plus a small, closed class vocabulary. Compose
+   layout yourself with these classes and the CSS variables they read. */
+
+@import "./tokens/color.css";
+@import "./tokens/typography.css";
+@import "./tokens/space.css";
+@import "./tokens/motion.css";
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+  font-weight: var(--type-body-weight);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+   Surfaces — elevation comes from surface level, never from shadow
+   --------------------------------------------------------------------------- */
+
+.ds-surface-0 { background: var(--surface-0); }
+.ds-surface-1 { background: var(--surface-1); }
+.ds-surface-2 { background: var(--surface-2); }
+.ds-surface-3 { background: var(--surface-3); }
+
+.ds-border { border: 1px solid var(--border); }
+.ds-border-subtle { border: 1px solid var(--border-subtle); }
+
+/* The split between panels. The icon is a field cut in two; the interface may
+   echo that, but only here — never as decoration. */
+.ds-divide { border-left: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------------------
+   Text roles
+   --------------------------------------------------------------------------- */
+
+.ds-text-primary { color: var(--text-primary); }
+.ds-text-secondary { color: var(--text-secondary); }
+.ds-text-tertiary { color: var(--text-tertiary); }
+
+.ds-panel-title {
+  font-family: var(--font-ui);
+  font-size: var(--type-panel-title-size);
+  line-height: var(--type-panel-title-leading);
+  font-weight: var(--type-panel-title-weight);
+  color: var(--text-primary);
+}
+
+.ds-body {
+  font-family: var(--font-ui);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+  font-weight: var(--type-body-weight);
+}
+
+.ds-label {
+  font-family: var(--font-ui);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-leading);
+  font-weight: var(--type-label-weight);
+  color: var(--text-secondary);
+}
+
+.ds-code {
+  font-family: var(--font-code);
+  font-size: var(--type-code-size);
+  line-height: var(--type-code-leading);
+  font-weight: var(--type-code-weight);
+}
+
+.ds-line-number {
+  font-family: var(--font-code);
+  font-size: var(--type-line-number-size);
+  line-height: var(--type-line-number-leading);
+  font-weight: var(--type-line-number-weight);
+  color: var(--text-tertiary);
+  text-align: right;
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Diff — brand colors live in the gutter and the text.
+   Line fills are the same colors at very low alpha, never their own hues.
+   --------------------------------------------------------------------------- */
+
+.ds-diff-add { color: var(--diff-add); }
+.ds-diff-del { color: var(--diff-del); }
+
+.ds-diff-add-line { background: var(--diff-add-bg); }
+.ds-diff-del-line { background: var(--diff-del-bg); }
+
+.ds-diff-add-word { background: var(--diff-add-word); }
+.ds-diff-del-word { background: var(--diff-del-word); }
+
+/* ---------------------------------------------------------------------------
+   Shape
+   --------------------------------------------------------------------------- */
+
+.ds-radius-sm { border-radius: var(--radius-sm); }
+.ds-radius-md { border-radius: var(--radius-md); }
+.ds-radius-lg { border-radius: var(--radius-lg); }
+
+/* ---------------------------------------------------------------------------
+   Density
+   --------------------------------------------------------------------------- */
+
+.ds-row {
+  height: var(--row-height);
+  display: flex;
+  align-items: center;
+}
+
+.ds-panel { padding: var(--panel-padding); }
+
+.ds-gutter {
+  width: var(--diff-gutter-width);
+  flex: 0 0 var(--diff-gutter-width);
+}
+
+/* ---------------------------------------------------------------------------
+   Interaction — there is no separate accent hue. Selection, focus and action
+   all borrow diff-add, because in a diff tool green already means "present,
+   added". That is the same semantic, not a second one.
+   --------------------------------------------------------------------------- */
+
+.ds-selected {
+  background: var(--surface-3);
+  box-shadow: inset 2px 0 0 0 var(--diff-add);
+}
+
+.ds-focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Links and actions are underlined text, not a color. */
+.ds-link {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Elevation — the only shadow in the interface
+   --------------------------------------------------------------------------- */
+
+.ds-popover {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — the three animations this product has. Nothing else moves.
+   --------------------------------------------------------------------------- */
+
+.ds-collapse {
+  transition: height var(--motion-collapse-duration) var(--motion-collapse-easing),
+              opacity var(--motion-collapse-duration) var(--motion-collapse-easing);
+}
+
+/* A hunk that has been read recedes rather than disappearing. */
+.ds-read {
+  opacity: var(--opacity-read);
+  transition: opacity var(--motion-read-duration) ease-out;
+}
+
+.ds-flash {
+  animation: ds-flash var(--motion-flash-duration) ease-out;
+}
+
+@keyframes ds-flash {
+  from { background: var(--diff-add-word); }
+  to { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-flash { animation: none; }
+}

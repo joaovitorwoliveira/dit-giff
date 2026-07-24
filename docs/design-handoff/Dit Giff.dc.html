@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/color.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/space.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/styles.css">
+  <script src="_ds/dit-giff-98db9bdc-70f6-4cee-9b04-b71793a32888/_ds_bundle.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
+    a:hover { color: var(--diff-add); }
+    ::placeholder { color: var(--text-tertiary); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</helmet>
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--surface-0);font-family:var(--font-ui)">
+  <header class="ds-surface-1" style="height:52px;flex:0 0 52px;display:flex;align-items:center;gap:var(--space-16);padding:0 var(--space-16);border-bottom:1px solid var(--border-subtle)">
+    <div style="display:flex;gap:var(--space-8);flex:0 0 auto">
+      <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;display:block"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;display:block"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#28C840;display:block"></span>
+    </div>
+    <span class="ds-panel-title" style="flex:0 0 auto">Dit Giff</span>
+    <div style="flex:1;display:flex;justify-content:center;min-width:0">
+      <div class="ds-surface-3 ds-radius-sm ds-code ds-border-subtle" style="display:flex;align-items:center;gap:var(--space-8);padding:4px var(--space-12);white-space:nowrap">
+        <span class="ds-text-primary">feature/annual-billing</span>
+        <span class="ds-text-tertiary">→</span>
+        <span class="ds-text-primary">main</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:var(--space-12);flex:0 0 auto">
+      <span class="ds-label">64 arquivos</span>
+      <span class="ds-code" style="font-size:11px;white-space:nowrap"><span class="ds-diff-add">+3242</span> <span class="ds-diff-del">−347</span></span>
+      <button onClick="{{ toggleTheme }}" class="ds-label ds-focus-ring ds-radius-sm" style="background:transparent;border:1px solid var(--border);padding:4px var(--space-8);cursor:pointer;color:var(--text-secondary)" style-hover="background:var(--surface-3);color:var(--text-primary)">{{ themeLabel }}</button>
+    </div>
+  </header>
+  <sc-if value="{{ isPre }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Antes da análise" style="flex:1;display:flex;align-items:center;justify-content:center;padding:var(--space-24);overflow-y:auto">
+      <div style="width:560px;max-width:100%;display:flex;flex-direction:column;gap:var(--space-24)">
+        <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+          <div class="ds-panel-title" style="font-size:15px">Entenda a mudança antes de abrir o MR</div>
+          <div class="ds-body ds-text-secondary" style="text-wrap:pretty">O diff é montado localmente a partir do git desta máquina. A análise aponta o que um revisor atento notaria — a decisão continua sua.</div>
+        </div>
+        <div class="ds-surface-1 ds-border-subtle ds-radius-md" style="padding:var(--space-16);display:flex;flex-direction:column;gap:var(--space-16)">
+          <div style="display:flex;align-items:center;gap:var(--space-12);flex-wrap:wrap">
+            <div class="ds-surface-3 ds-radius-sm ds-code ds-border-subtle" style="display:flex;align-items:center;gap:var(--space-8);padding:4px var(--space-12)">
+              <span class="ds-text-primary">feature/annual-billing</span>
+              <span class="ds-text-tertiary">→</span>
+              <span class="ds-text-primary">main</span>
+            </div>
+            <span class="ds-label" style="flex:1"></span>
+            <span class="ds-code" style="font-size:11px"><span class="ds-text-tertiary">64 arquivos · </span><span class="ds-diff-add">+3242</span> <span class="ds-diff-del">−347</span></span>
+          </div>
+          <textarea rows="3" placeholder="O que essa mudança deveria fazer? (opcional)" class="ds-body ds-focus-ring ds-radius-md" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary);padding:var(--space-8) var(--space-12);resize:none;outline:none;font-family:var(--font-ui)"></textarea>
+          <div style="display:flex;align-items:center;gap:var(--space-12)">
+            <span class="ds-label ds-text-tertiary" style="flex:1;text-wrap:pretty">Uma frase deixa as pistas mais precisas. Nunca é obrigatória.</span>
+            <button onClick="{{ analyze }}" disabled="{{ analyzing }}" class="ds-panel-title ds-focus-ring ds-radius-sm" style="background:var(--surface-3);border:1px solid var(--border);padding:6px var(--space-16);cursor:pointer;white-space:nowrap" style-hover="border-color:var(--diff-add)">{{ analyzeLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;min-height:0">
+      <aside data-screen-label="Mapa da mudança" class="ds-surface-1" style="width:264px;flex:0 0 264px;border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;min-height:0">
+        <div style="padding:var(--space-12);border-bottom:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:var(--space-8)">
+          <div class="ds-code ds-text-secondary" style="font-size:11px;display:flex;gap:var(--space-4);align-items:center;min-width:0">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/annual-billing</span>
+            <span class="ds-text-tertiary" style="flex:0 0 auto">→</span>
+            <span style="flex:0 0 auto">main</span>
+          </div>
+          <div class="ds-label">{{ progressText }}</div>
+          <div style="height:3px;border-radius:2px;background:var(--surface-3);overflow:hidden">
+            <div style="height:100%;background:var(--diff-add);border-radius:2px;width:{{ progressPct }};transition:width var(--motion-read-duration) ease-out"></div>
+          </div>
+          <sc-if value="{{ allRead }}" hint-placeholder-val="{{ false }}">
+            <div class="ds-label ds-diff-add">Tudo lido — pronto pra abrir o MR.</div>
+          </sc-if>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:var(--space-8) var(--space-8) var(--space-24)">
+          <div class="ds-label ds-text-tertiary" style="padding:var(--space-8);text-transform:uppercase;letter-spacing:0.06em">O que esta mudança faz</div>
+          <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+            <div style="margin-bottom:var(--space-4)">
+              <div class="ds-radius-sm" onClick="{{ g.toggle }}" style="display:flex;align-items:flex-start;cursor:pointer;gap:var(--space-8);padding:var(--space-4) var(--space-8)" style-hover="background:var(--surface-3)">
+                <span class="ds-text-tertiary" style="width:12px;flex:0 0 12px;font-size:9px;line-height:18px">{{ g.chev }}</span>
+                <span class="ds-body" style="flex:1;min-width:0;text-wrap:pretty">{{ g.name }}</span>
+                <span class="ds-label ds-text-tertiary" style="flex:0 0 auto">{{ g.count }}</span>
+              </div>
+              <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                <div class="ds-collapse" style="display:flex;flex-direction:column;padding-left:var(--space-16)">
+                  <sc-for list="{{ g.files }}" as="f" hint-placeholder-count="4">
+                    <div class="ds-row ds-radius-sm" onClick="{{ f.click }}" style="gap:var(--space-8);padding:0 var(--space-8);cursor:{{ f.cursor }}" style-hover="background:var(--surface-3)">
+                      <span class="ds-code ds-text-secondary" style="flex:1;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span>
+                      <span class="ds-code ds-diff-add" style="font-size:10px">{{ f.adds }}</span>
+                      <span class="ds-code ds-diff-del" style="font-size:10px">{{ f.dels }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="border-top:1px solid var(--border-subtle);margin:var(--space-12) var(--space-8)"></div>
+          <div class="ds-row ds-radius-sm" onClick="{{ toggleNoise }}" style="cursor:pointer;gap:var(--space-8);padding:0 var(--space-8)" style-hover="background:var(--surface-3)">
+            <span class="ds-text-tertiary" style="width:12px;flex:0 0 12px;font-size:9px">{{ noiseChev }}</span>
+            <span class="ds-body ds-text-tertiary" style="flex:1">Ruído</span>
+            <span class="ds-label ds-text-tertiary">4 arquivos</span>
+          </div>
+          <sc-if value="{{ noiseOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="ds-collapse" style="display:flex;flex-direction:column;padding-left:var(--space-16)">
+              <sc-for list="{{ noiseItems }}" as="ni" hint-placeholder-count="4">
+                <div>
+                  <div class="ds-row ds-radius-sm" onClick="{{ ni.toggle }}" style="cursor:pointer;gap:var(--space-8);padding:0 var(--space-8)" style-hover="background:var(--surface-3)">
+                    <span class="ds-code ds-text-tertiary" style="flex:1;min-width:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ni.name }}</span>
+                    <span class="ds-label ds-text-tertiary" style="flex:0 0 auto">{{ ni.tag }}</span>
+                  </div>
+                  <sc-if value="{{ ni.open }}" hint-placeholder-val="{{ false }}">
+                    <div class="ds-label ds-text-tertiary" style="padding:0 var(--space-8) var(--space-8) var(--space-8);text-wrap:pretty">{{ ni.detail }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </aside>
+      <main data-screen-label="Diff" ref="{{ centerRef }}" class="ds-surface-0" style="flex:1;min-width:0;overflow-y:auto;position:relative;padding:0 var(--space-24) var(--space-48)">
+        <sc-for list="{{ fileSections }}" as="fs" hint-placeholder-count="3">
+          <section style="padding-top:var(--space-16)">
+            <header class="ds-row ds-surface-0" style="gap:var(--space-8);position:sticky;top:0;z-index:2">
+              <span class="ds-code ds-text-primary" style="font-size:12px;font-weight:600">{{ fs.path }}</span>
+              <span class="ds-code ds-diff-add" style="font-size:11px">{{ fs.adds }}</span>
+              <span class="ds-code ds-diff-del" style="font-size:11px">{{ fs.dels }}</span>
+            </header>
+            <sc-for list="{{ fs.hunks }}" as="h" hint-placeholder-count="1">
+              <article id="hunk-{{ h.id }}" class="ds-surface-1 ds-border-subtle ds-radius-md {{ h.cls }}" style="overflow:hidden;margin-top:var(--space-8);position:relative" onMouseEnter="{{ h.enter }}" onMouseLeave="{{ h.leave }}">
+                <sc-if value="{{ h.marker }}" hint-placeholder-val="{{ false }}">
+                  <div title="Pista anexada" style="position:absolute;left:0;top:6px;width:3px;height:16px;background:var(--text-tertiary);border-radius:0 2px 2px 0"></div>
+                </sc-if>
+                <header style="height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-8) 0 var(--space-12);border-bottom:1px solid var(--border-subtle)">
+                  <span class="ds-code ds-text-tertiary" style="font-size:11px">{{ h.header }}</span>
+                  <div style="display:flex;gap:var(--space-4);opacity:{{ h.aOp }};pointer-events:{{ h.aPe }}">
+                    <button onClick="{{ h.explain }}" class="ds-label ds-radius-sm" style="background:transparent;border:none;padding:2px var(--space-8);cursor:pointer;color:var(--text-secondary)" style-hover="background:var(--surface-3);color:var(--text-primary)">Explicar</button>
+                    <button onClick="{{ h.toggleRead }}" class="ds-label ds-radius-sm" style="background:transparent;border:none;padding:2px var(--space-8);cursor:pointer;color:var(--text-secondary)" style-hover="background:var(--surface-3);color:var(--text-primary)">{{ h.readLabel }}</button>
+                  </div>
+                </header>
+                <div style="padding:var(--space-4) 0;overflow-x:auto">
+                  <sc-for list="{{ h.lines }}" as="ln" hint-placeholder-count="6">
+                    <div class="{{ ln.rowCls }}" style="display:flex;min-width:max-content">
+                      <span class="ds-line-number" style="width:36px;flex:0 0 36px;padding-right:var(--space-8)">{{ ln.a }}</span>
+                      <span class="ds-line-number" style="width:28px;flex:0 0 28px;padding-right:var(--space-8)">{{ ln.b }}</span>
+                      <span class="ds-code {{ ln.txtCls }}" style="white-space:pre;padding-right:var(--space-24)"><sc-for list="{{ ln.segs }}" as="sg" hint-placeholder-count="1"><span class="{{ sg.c }}">{{ sg.t }}</span></sc-for></span>
+                    </div>
+                  </sc-for>
+                </div>
+              </article>
+            </sc-for>
+          </section>
+        </sc-for>
+      </main>
+      <aside data-screen-label="Pistas" class="ds-surface-1" style="width:320px;flex:0 0 320px;border-left:1px solid var(--border-subtle);overflow-y:auto">
+        <div style="padding:var(--space-12);display:flex;flex-direction:column;gap:var(--space-24)">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:var(--space-4) var(--space-4) 0">
+            <span class="ds-panel-title">Pistas</span>
+            <span class="ds-label ds-text-tertiary">Observações, nunca vereditos. Quem decide é você.</span>
+          </div>
+          <sc-if value="{{ cluesEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-12);padding:var(--space-32) var(--space-16) var(--space-8)">
+              <div class="ds-diff-add" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--diff-add);display:flex;align-items:center;justify-content:center;font-size:13px">✓</div>
+              <div class="ds-panel-title">Nada digno de nota</div>
+              <div class="ds-body ds-text-secondary" style="text-wrap:pretty">A análise leu os 47 hunks e não encontrou trechos incidentais, mudanças fora de escopo nem decisões que um revisor tende a questionar. Leia no seu ritmo.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hasClues }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:var(--space-24)">
+              <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+                <div class="ds-label ds-text-tertiary" style="text-transform:uppercase;letter-spacing:0.06em">Olha isso</div>
+                <sc-for list="{{ olha }}" as="cl" hint-placeholder-count="2">
+                  <div class="ds-surface-2 ds-border-subtle ds-radius-md" onClick="{{ cl.jump }}" style="padding:var(--space-12);cursor:pointer;display:flex;flex-direction:column;gap:var(--space-8)" style-hover="border-color:var(--border)">
+                    <span class="ds-body ds-text-primary" style="text-wrap:pretty">{{ cl.text }}</span>
+                    <span class="ds-code ds-text-tertiary" style="font-size:10px">{{ cl.loc }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+                <div class="ds-label ds-text-tertiary" style="text-transform:uppercase;letter-spacing:0.06em">Decisões a defender</div>
+                <sc-for list="{{ decisoes }}" as="dc" hint-placeholder-count="1">
+                  <div class="ds-surface-2 ds-border-subtle ds-radius-md" onClick="{{ dc.jump }}" style="padding:var(--space-12);cursor:pointer;display:flex;flex-direction:column;gap:var(--space-8)" style-hover="border-color:var(--border)">
+                    <span class="ds-body ds-text-primary" style="text-wrap:pretty">{{ dc.text }}</span>
+                    <span class="ds-code ds-text-tertiary" style="font-size:10px">{{ dc.loc }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+            <div class="ds-label ds-text-tertiary" style="text-transform:uppercase;letter-spacing:0.06em">Explicações</div>
+            <sc-for list="{{ expl }}" as="ex" hint-placeholder-count="1">
+              <div class="ds-surface-2 ds-border-subtle ds-radius-md" onClick="{{ ex.jump }}" style="padding:var(--space-12);cursor:pointer;display:flex;flex-direction:column;gap:var(--space-8)" style-hover="border-color:var(--border)">
+                <span class="ds-code ds-text-tertiary" style="font-size:10px">{{ ex.loc }}</span>
+                <span class="ds-body ds-text-secondary" style="text-wrap:pretty">{{ ex.text }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noExpl }}" hint-placeholder-val="{{ true }}">
+              <div class="ds-body ds-text-tertiary" style="text-wrap:pretty;padding:0 var(--space-4)">Passe o mouse sobre um hunk e clique “Explicar” — a resposta empilha aqui e leva de volta ao código.</div>
+            </sc-if>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tela-cheia&quot;,&quot;antes-da-analise&quot;,&quot;tudo-lido&quot;,&quot;pistas-vazias&quot;],&quot;default&quot;:&quot;tela-cheia&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Estado do protótipo&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Estado do protótipo&quot;}}">
+class Component extends DCLogic {
+  state = { scn: null, theme: null, read: null, expl: [], grpOpen: { 0: true, 1: false, 2: false }, noiseOpen: false, noiseDetail: {}, hover: null, flash: null, analyzing: false };
+  centerRef = React.createRef();
+  timers = [];
+
+  scnKey() {
+    if (this.state.scn) return this.state.scn;
+    const m = { 'antes-da-analise': 'pre', 'tudo-lido': 'done', 'pistas-vazias': 'quiet' };
+    return m[this.props.scenario] || 'main';
+  }
+  effTheme() { return this.state.theme || this.props.theme || 'dark'; }
+  applyTheme() { document.documentElement.setAttribute('data-theme', this.effTheme()); }
+  componentDidMount() { this.applyTheme(); }
+  componentDidUpdate(prev) {
+    if (prev.scenario !== this.props.scenario) this.setState({ scn: null, read: null, expl: [], flash: null, hover: null, analyzing: false });
+    if (prev.theme !== this.props.theme) this.setState({ theme: null });
+    this.applyTheme();
+  }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+
+  data() {
+    if (this._d) return this._d;
+    const L = (a, b, t, segs) => ({ a, b, t, segs: typeof segs === 'string' ? [{ t: segs, c: '' }] : segs });
+    const hunks = [
+      { id: 'h1', header: '@@ −139,6 +139,6 @@ func canCharge(_:)', loc: 'BillingGuard.swift:142',
+        expl: 'O limite deixou de contar como estouro: antes used >= limit caía no caminho de overage, agora só used > limit. O teste novo em AnnualBillingTests fixa esse comportamento como intencional — se não for, o teste também está errado.',
+        lines: [
+          L('139','139','c','  func canCharge(_ account: Account) -> Bool {'),
+          L('140','140','c','      let limit = account.plan.chargeLimit(for: period)'),
+          L('141','141','c','      let used = account.usage.total(in: period)'),
+          L('142','','d',[{t:'-     guard used ',c:''},{t:'>=',c:'ds-diff-del-word'},{t:' limit else { return true }',c:''}]),
+          L('','142','a',[{t:'+     guard used ',c:''},{t:'>',c:'ds-diff-add-word'},{t:' limit else { return true }',c:''}]),
+          L('143','143','c','      return account.plan.allowsOverage'),
+          L('144','144','c','  }') ] },
+      { id: 'h2', header: '@@ −55,7 +55,7 @@ enum PlanCatalog', loc: 'PlanResolver.swift:56',
+        expl: 'resolvePlan passou de retorno opcional para exceção tipada. Quem chamava com guard let precisa migrar pra do/catch — no diff, os chamadores usam try! ou try sem catch.',
+        lines: [
+          L('55','55','c','  // Resolve o plano a partir do catálogo local'),
+          L('56','','d',[{t:'- func resolvePlan(_ id: PlanID) ',c:''},{t:'-> Plan?',c:'ds-diff-del-word'},{t:' {',c:''}]),
+          L('','56','a',[{t:'+ func resolvePlan(_ id: PlanID) ',c:''},{t:'throws -> Plan',c:'ds-diff-add-word'},{t:' {',c:''}]),
+          L('57','57','c','      if let plan = catalog.plan(for: id) {'),
+          L('58','58','c','          return plan'),
+          L('59','59','c','      }'),
+          L('60','','d','-     return nil'),
+          L('','60','a','+     throw PlanError.notFound(id)'),
+          L('61','61','c','  }') ] },
+      { id: 'h3', header: '@@ −201,7 +201,7 @@ func schedule(for:)', loc: 'InvoiceScheduler.swift:202',
+        expl: 'O agendador força o unwrap com try!. Se o plano não existir no catálogo (conta migrada, plano descontinuado), isso derruba o processo em vez de pular a fatura, como fazia antes.',
+        lines: [
+          L('201','201','c','  func schedule(for account: Account) {'),
+          L('202','','d','-     guard let plan = resolvePlan(account.planID) else { return }'),
+          L('','202','a',[{t:'+     let plan = ',c:''},{t:'try!',c:'ds-diff-add-word'},{t:' resolvePlan(account.planID)',c:''}]),
+          L('203','203','c','      let months = plan.billingCycle == .annual ? 12 : 1'),
+          L('204','','d','-     let amount = plan.price'),
+          L('','204','a','+     let amount = prorate(plan.price, months: months)'),
+          L('205','205','c','      enqueue(Invoice(account: account, amount: amount))'),
+          L('206','206','c','  }') ] },
+      { id: 'h8', header: '@@ −8,4 +8,5 @@ func prorate(_:months:)', loc: 'ProrationCalculator.swift:9',
+        expl: 'prorate agora protege contra months <= 0 e multiplica antes de dividir, evitando arredondar duas vezes com Decimal.',
+        lines: [
+          L('8','8','c','  func prorate(_ price: Decimal, months: Int) -> Decimal {'),
+          L('9','','d','-     return price / 12'),
+          L('','9','a','+     guard months > 0 else { return price }'),
+          L('','10','a','+     return (price * Decimal(months)) / 12'),
+          L('10','11','c','  }') ] },
+      { id: 'h4', header: '@@ −87,11 +87,5 @@ func update(_:)', loc: 'SubscriptionHandler.swift:88',
+        expl: 'A validação saiu do handler. O endpoint agora depende de Subscription.apply lançar os mesmos erros — mas a ordem mudou: store.subscription roda antes da validação, então um id inexistente responde 404 onde antes respondia 422.',
+        lines: [
+          L('87','87','c','  func update(_ req: UpdateRequest) throws -> Response {'),
+          L('88','','d','-     guard req.plan.isValid else {'),
+          L('89','','d','-         throw ValidationError.invalidPlan'),
+          L('90','','d','-     }'),
+          L('91','','d','-     guard req.seats > 0 else {'),
+          L('92','','d','-         throw ValidationError.noSeats'),
+          L('93','','d','-     }'),
+          L('94','88','c','      let sub = try store.subscription(req.id)'),
+          L('95','','d','-     sub.apply(req)'),
+          L('','89','a',[{t:'+     ',c:''},{t:'try',c:'ds-diff-add-word'},{t:' sub.apply(req)',c:''}]),
+          L('96','90','c','      return .ok(sub)'),
+          L('97','91','c','  }') ] },
+      { id: 'h5', header: '@@ −40,5 +40,8 @@ struct Subscription', loc: 'Subscription.swift:42',
+        expl: 'As guardas foram recriadas dentro do model, o que cobre outros chamadores além do handler. O throws novo se propaga pra todo call site de apply.',
+        lines: [
+          L('40','40','c','      var plan: Plan'),
+          L('41','','d','-     mutating func apply(_ req: UpdateRequest) {'),
+          L('','41','a',[{t:'+     mutating func apply(_ req: UpdateRequest) ',c:''},{t:'throws',c:'ds-diff-add-word'},{t:' {',c:''}]),
+          L('','42','a','+         guard req.plan.isValid else { throw ValidationError.invalidPlan }'),
+          L('','43','a','+         guard req.seats > 0 else { throw ValidationError.noSeats }'),
+          L('42','44','c','          self.plan = req.plan'),
+          L('43','45','c','          self.seats = req.seats'),
+          L('44','46','c','      }') ] },
+      { id: 'h6', header: '@@ −12,9 +12,5 @@ final class APIClient', loc: 'APIClient.swift:12',
+        expl: 'Troca direta de URLSession pelo HTTPClient novo: o callback vira async/await e o corpo da resposta é lido de .body. O tratamento de erro de rede agora vem do client, não do dataTask.',
+        lines: [
+          L('12','','d','- private let session = URLSession.shared'),
+          L('','12','a','+ private let client = HTTPClient(configuration: .default)'),
+          L('13','13','c',''),
+          L('14','14','c','  func fetch(_ request: APIRequest) async throws -> Data {'),
+          L('15','','d','-     await withCheckedContinuation { cont in'),
+          L('16','','d','-         session.dataTask(with: request.urlRequest) { data, _, _ in'),
+          L('17','','d','-             cont.resume(returning: data ?? Data())'),
+          L('18','','d','-         }.resume()'),
+          L('19','','d','-     }'),
+          L('','15','a','+     try await client.send(request).body'),
+          L('20','16','c','  }') ] },
+      { id: 'h7', header: '@@ −0,0 +1,9 @@', loc: 'AnnualBillingTests.swift:6',
+        expl: 'Teste de regressão que fixa a decisão do limite exato: uma conta em .atLimit deve continuar cobrável. É a âncora pra responder “foi intencional?” na revisão.',
+        lines: [
+          L('','1','a','+ import XCTest'),
+          L('','2','a','+ @testable import Billing'),
+          L('','3','a','+'),
+          L('','4','a','+ final class AnnualBillingTests: XCTestCase {'),
+          L('','5','a','+     func testAccountAtExactLimitStillCharges() {'),
+          L('','6','a','+         let account = Account.fixture(plan: .annual, usage: .atLimit)'),
+          L('','7','a','+         XCTAssertTrue(BillingGuard().canCharge(account))'),
+          L('','8','a','+     }'),
+          L('','9','a','+ }') ] } ];
+    const files = [
+      { path: 'Sources/Billing/BillingGuard.swift', adds: '+1', dels: '−1', hunkIds: ['h1'] },
+      { path: 'Sources/Billing/PlanResolver.swift', adds: '+2', dels: '−2', hunkIds: ['h2'] },
+      { path: 'Sources/Billing/InvoiceScheduler.swift', adds: '+2', dels: '−2', hunkIds: ['h3'] },
+      { path: 'Sources/Billing/ProrationCalculator.swift', adds: '+2', dels: '−1', hunkIds: ['h8'] },
+      { path: 'Sources/API/SubscriptionHandler.swift', adds: '+1', dels: '−7', hunkIds: ['h4'] },
+      { path: 'Sources/Models/Subscription.swift', adds: '+3', dels: '−1', hunkIds: ['h5'] },
+      { path: 'Sources/HTTP/APIClient.swift', adds: '+2', dels: '−6', hunkIds: ['h6'] },
+      { path: 'Tests/BillingTests/AnnualBillingTests.swift', adds: '+9', dels: '', hunkIds: ['h7'] } ];
+    const groups = [
+      { name: 'Cobrança passa a considerar plano anual', files: [
+        ['BillingGuard.swift', 1, 1, 'h1'], ['PlanResolver.swift', 2, 2, 'h2'], ['InvoiceScheduler.swift', 2, 2, 'h3'],
+        ['ProrationCalculator.swift', 2, 1, 'h8'], ['SubscriptionHandler.swift', 1, 7, 'h4'], ['Subscription.swift', 3, 1, 'h5'],
+        ['BillingConfig.swift', 14, 2, null] ] },
+      { name: 'Migração do cliente HTTP antigo', files: [
+        ['APIClient.swift', 2, 6, 'h6'], ['HTTPClientCore.swift', 214, 0, null], ['RequestBuilder.swift', 38, 24, null],
+        ['AuthInterceptor.swift', 19, 41, null], ['RetryPolicy.swift', 52, 0, null], ['WebhookSender.swift', 11, 16, null],
+        ['PaymentGateway.swift', 24, 31, null], ['ReceiptFetcher.swift', 9, 14, null], ['SyncService.swift', 31, 27, null],
+        ['TelemetryUploader.swift', 7, 12, null], ['AvatarLoader.swift', 5, 9, null], ['SubscriptionHandler.swift', 1, 7, 'h4'] ] },
+      { name: 'Testes de regressão', files: [
+        ['AnnualBillingTests.swift', 9, 0, 'h7'], ['BillingGuardTests.swift', 41, 6, null], ['PlanResolverTests.swift', 38, 12, null],
+        ['ProrationTests.swift', 27, 0, null], ['SubscriptionHandlerTests.swift', 19, 22, null], ['InvoiceSchedulerTests.swift', 24, 9, null],
+        ['APIClientTests.swift', 56, 34, null], ['RetryPolicyTests.swift', 48, 0, null], ['MigrationSmokeTests.swift', 22, 0, null] ] } ];
+    const noise = [
+      { name: 'Package.resolved', tag: 'lockfile', detail: '96 linhas regeneradas pelo SPM, sem mudança de dependência direta.' },
+      { name: '__Snapshots__/InvoiceView@2x.png', tag: 'gerado', detail: 'Snapshot regenerado pelo teste de UI.' },
+      { name: '__Snapshots__/PlanPicker@2x.png', tag: 'gerado', detail: 'Snapshot regenerado pelo teste de UI.' },
+      { name: 'LegacyImporter.swift', tag: 'formatação', detail: '412 linhas tocadas, todas reindentação — nenhuma mudança semântica.' } ];
+    const olha = [
+      { id: 'h1', loc: 'BillingGuard.swift:142', text: 'O check de cobrança em BillingGuard.swift:142 mudou de >= pra >. Contas exatamente no limite do plano agora caem no outro lado da guarda. Foi intencional?' },
+      { id: 'h2', loc: 'PlanResolver.swift:56', text: 'resolvePlan() antes retornava nil quando não achava o plano; agora lança exceção. Três chamadores no diff tratam o retorno — nenhum captura a exceção.' } ];
+    const decisoes = [
+      { id: 'h4', loc: 'SubscriptionHandler.swift:88', text: 'Por que a validação foi movida do handler pro model? O revisor vai perguntar se isso muda a ordem dos erros retornados pela API.' } ];
+    const hunkById = {}; hunks.forEach(h => { hunkById[h.id] = h; });
+    this._d = { hunks, files, groups, noise, olha, decisoes, hunkById, clueIds: ['h1', 'h2', 'h4'] };
+    return this._d;
+  }
+
+  jump = (id) => {
+    const el = document.getElementById('hunk-' + id);
+    const c = this.centerRef.current;
+    if (el && c) {
+      const top = el.getBoundingClientRect().top - c.getBoundingClientRect().top + c.scrollTop - 12;
+      c.scrollTo({ top, behavior: 'smooth' });
+    }
+    this.setState({ flash: id });
+    this.timers.push(setTimeout(() => this.setState(s => s.flash === id ? { flash: null } : null), 800));
+  };
+
+  renderVals() {
+    const d = this.data();
+    const scn = this.scnKey();
+    const isPre = scn === 'pre';
+    const read = this.state.read || (scn === 'done' ? Object.fromEntries(d.hunks.map(h => [h.id, true])) : { h6: true, h7: true });
+    const base = scn === 'done' ? 39 : 16;
+    const readCount = base + d.hunks.filter(h => read[h.id]).length;
+    const allRead = readCount >= 47;
+    const groups = d.groups.map((g, i) => ({
+      name: (i + 1) + '. ' + g.name,
+      count: g.files.length + ' arquivos',
+      open: !!this.state.grpOpen[i],
+      chev: this.state.grpOpen[i] ? '▾' : '▸',
+      toggle: () => this.setState(s => ({ grpOpen: { ...s.grpOpen, [i]: !s.grpOpen[i] } })),
+      files: g.files.map(([name, a, x, hid]) => ({
+        name, adds: '+' + a, dels: x ? '−' + x : '',
+        cursor: hid ? 'pointer' : 'default',
+        click: hid ? () => this.jump(hid) : () => {} }))
+    }));
+    const noiseItems = d.noise.map((n, i) => ({
+      name: n.name, tag: n.tag, detail: n.detail,
+      open: !!this.state.noiseDetail[i],
+      toggle: () => this.setState(s => ({ noiseDetail: { ...s.noiseDetail, [i]: !s.noiseDetail[i] } }))
+    }));
+    const fileSections = d.files.map(f => ({
+      path: f.path, adds: f.adds, dels: f.dels,
+      hunks: f.hunkIds.map(id => {
+        const h = d.hunkById[id];
+        const isRead = !!read[id];
+        const hov = this.state.hover === id;
+        return {
+          id, header: h.header,
+          cls: (isRead ? 'ds-read ' : '') + (this.state.flash === id ? 'ds-flash' : ''),
+          marker: (scn !== 'quiet' && d.clueIds.includes(id)) || this.state.expl.includes(id),
+          aOp: hov ? '1' : '0', aPe: hov ? 'auto' : 'none',
+          readLabel: isRead ? 'Marcar como não lido' : 'Marcar como lido',
+          enter: () => this.setState({ hover: id }),
+          leave: () => this.setState(s => s.hover === id ? { hover: null } : null),
+          toggleRead: () => this.setState({ read: { ...read, [id]: !isRead } }),
+          explain: () => this.setState(s => ({ expl: s.expl.includes(id) ? s.expl : [...s.expl, id] })),
+          lines: h.lines.map(ln => ({
+            a: ln.a, b: ln.b,
+            rowCls: ln.t === 'a' ? 'ds-diff-add-line' : ln.t === 'd' ? 'ds-diff-del-line' : '',
+            txtCls: ln.t === 'a' ? 'ds-diff-add' : ln.t === 'd' ? 'ds-diff-del' : 'ds-text-secondary',
+            segs: ln.segs }))
+        };
+      })
+    }));
+    const mk = (c) => ({ text: c.text, loc: c.loc, jump: () => this.jump(c.id) });
+    const expl = this.state.expl.map(id => ({ loc: d.hunkById[id].loc, text: d.hunkById[id].expl, jump: () => this.jump(id) }));
+    return {
+      isPre, isMain: !isPre,
+      themeLabel: this.effTheme() === 'dark' ? 'Modo claro' : 'Modo escuro',
+      toggleTheme: () => this.setState({ theme: this.effTheme() === 'dark' ? 'light' : 'dark' }, () => this.applyTheme()),
+      analyzing: this.state.analyzing,
+      analyzeLabel: this.state.analyzing ? 'Lendo 64 arquivos…' : 'Analisar mudança',
+      analyze: () => {
+        if (this.state.analyzing) return;
+        this.setState({ analyzing: true });
+        this.timers.push(setTimeout(() => this.setState({ analyzing: false, scn: 'main' }), 900));
+      },
+      progressText: readCount + ' de 47 hunks lidos',
+      progressPct: Math.round(readCount / 47 * 100) + '%',
+      allRead,
+      groups, noiseItems,
+      noiseOpen: this.state.noiseOpen,
+      noiseChev: this.state.noiseOpen ? '▾' : '▸',
+      toggleNoise: () => this.setState(s => ({ noiseOpen: !s.noiseOpen })),
+      fileSections, centerRef: this.centerRef,
+      cluesEmpty: scn === 'quiet',
+      hasClues: scn !== 'quiet',
+      olha: d.olha.map(mk), decisoes: d.decisoes.map(mk),
+      expl, noExpl: expl.length === 0
+    };
+  }
+}
+</script>
+</body>
+</html>

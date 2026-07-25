@@ -16,34 +16,16 @@ Stack: Swift / SwiftUI, native macOS.
 | Where | What |
 | --- | --- |
 | [`docs/product/PRODUCT.md`](docs/product/PRODUCT.md) | Product: problem, value pillars, what is decided, anti-goals. Read before proposing scope. |
-| [`docs/product/DESIGN-SYSTEM.md`](docs/product/DESIGN-SYSTEM.md) | **Canonical source** for every color, spacing, type and motion value. |
 | [`docs/product/SWIFT-SETUP.md`](docs/product/SWIFT-SETUP.md) | Setup and the technical primitives, written for someone coming from JS. |
-| [`docs/design-handoff/`](docs/design-handoff/) | `.dc.html` prototypes and screen spec from Claude Design. Layout reference, not code. |
-| [`ds-bundle/`](ds-bundle/) | Tokens as CSS. **Generated** by design-sync. |
+| `DitGiff/DitGiff/DesignSystem/` | The design system in Swift. Every color, spacing, type and motion value lives here. |
 | `DitGiff/` | The app. Open `DitGiff.xcodeproj` from here. |
 | `assets/icon/` | Icon drawn in code (`render-icon.swift`). |
 
+Design rules are deliberately not in this file. Take them from the design system in
+`DesignSystem/`, which is where the values are enforced; a `DESIGN.md` will hold the
+written rules.
+
 ## Rules that do not bend
-
-**From the design system** — hard rules, not preferences to weigh against others.
-Full list in `ds-bundle/guidelines/forbidden.md`:
-
-1. **No neutral gray.** Every tone carries a green undertone. `#fff`, `#000` and
-   framework grays are wrong. Use the tokens.
-2. **No separate accent hue.** Selection, focus and links all borrow `--diff-add`.
-   No blue, no purple. No saturated color beyond the diff green and coral.
-3. **Spacing is a closed scale:** 4, 8, 12, 16, 24, 32, 48, nothing between. If a gap
-   seems to need another value, the layout is wrong, not the scale.
-   (`ds-bundle/guidelines/layout.md`)
-4. **No AI cliché.** No purple gradient, no spark icon, no little stars, no pulsing
-   glow on anything a model produced.
-5. **No heavy shadow** — elevation comes from the surface scale, popovers excepted.
-   **No sharp corners. No emoji in the interface.**
-
-Dark is the default mode; light is a full parallel palette. Follow the OS appearance
-unless the user pins a mode.
-
-**From the product:**
 
 - **Read-only.** The AI never writes to the user's repository.
 - **App Sandbox stays off.** The app runs `git` and `claude` through `Process`, which
@@ -59,8 +41,9 @@ A change without tests is not done.
 
 - **Unit tests** (`DitGiffTests/`) use **Swift Testing** — `@Test`, `#expect`,
   `import Testing`. Not XCTest.
-- **UI tests** (`DitGiffUITests/`) use **XCTest**, because XCUITest has no Swift
-  Testing equivalent yet.
+- **There is no UI test target.** XCUITest drives the app through the accessibility
+  APIs, which takes over the whole screen while it runs. If one is ever added, it uses
+  XCTest, and `xcodebuild test` gets `-only-testing:DitGiffTests` by default.
 - Favor integration tests over mock-heavy unit tests. What matters is that a real
   diff produces the right result, not that a mock was called.
 
@@ -75,19 +58,19 @@ against actual `git diff` output rather than a hand-written string.
 
 ## Traps in this repository
 
-- **`ds-bundle/` is generated.** `.design-sync/config.json` points `outDir` there; the
-  next sync overwrites it. To change a token, edit `docs/product/DESIGN-SYSTEM.md` and
-  run the sync. Never hand-edit `ds-bundle/`, never move the folder.
-- **`docs/design-handoff/support.js` is prototype runtime, not app code.** The
-  `.dc.html` files are not for copying either — read them for exact values and
-  interaction intent. The `DESIGN-SYSTEM-tokens/` folder inside is a frozen copy of
-  `ds-bundle/`; for development use `ds-bundle/`.
+- **`ds-bundle/` is generated** by design-sync, which overwrites it wholesale. Never
+  hand-edit it, never move the folder.
+- **`docs/design-handoff/` holds prototypes, not code.** `support.js` is the prototype's
+  own runtime and the `.dc.html` files are references to read, never to copy.
 - **The PNGs in `assets/icon/` are build artifacts.** Edit the constants at the top of
   `render-icon.swift` and run `./build.sh`. After regenerating, copy the
   `AppIcon.appiconset` into the app's asset catalog.
-- **The project uses file system synchronized groups** (`objectVersion = 77`). A folder
-  created on disk under `DitGiff/DitGiff/` shows up in Xcode on its own — do not edit
-  the `.xcodeproj` to register files.
+- **The project uses file system synchronized groups** (`objectVersion = 77`). Swift files
+  and asset catalogs created on disk under `DitGiff/DitGiff/` join the target on their
+  own, so they never need a project edit. **Other resources do not** — a `.ttf` or a
+  `.json` dropped in a folder is simply ignored, and building succeeds while the file is
+  missing from the bundle at runtime. Those need a real entry in the `.xcodeproj`; see the
+  `Fonts` group for the shape of one.
 
 ## Commands
 

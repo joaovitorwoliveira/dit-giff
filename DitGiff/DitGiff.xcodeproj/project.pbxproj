@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AEFF00113014260000464DE2 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AEFF00013014260000464DE2 /* JetBrainsMono-Regular.ttf */; };
+		AEFF00123014260000464DE2 /* JetBrainsMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AEFF00023014260000464DE2 /* JetBrainsMono-Medium.ttf */; };
+		AEFF00133014260000464DE2 /* JetBrainsMono-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AEFF00033014260000464DE2 /* JetBrainsMono-SemiBold.ttf */; };
+		AEFF00143014260000464DE2 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = AEFF00043014260000464DE2 /* OFL.txt */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		AE827CB43014259900464DE2 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +34,10 @@
 		AE827CA63014259700464DE2 /* DitGiff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DitGiff.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE827CB33014259900464DE2 /* DitGiffTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DitGiffTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE827CBD3014259900464DE2 /* DitGiffUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DitGiffUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AEFF00013014260000464DE2 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Regular.ttf"; sourceTree = "<group>"; };
+		AEFF00023014260000464DE2 /* JetBrainsMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Medium.ttf"; sourceTree = "<group>"; };
+		AEFF00033014260000464DE2 /* JetBrainsMono-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-SemiBold.ttf"; sourceTree = "<group>"; };
+		AEFF00043014260000464DE2 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -76,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				AE827CA83014259700464DE2 /* DitGiff */,
+				AEFF00203014260000464DE2 /* Fonts */,
 				AE827CB63014259900464DE2 /* DitGiffTests */,
 				AE827CC03014259900464DE2 /* DitGiffUITests */,
 				AE827CA73014259700464DE2 /* Products */,
@@ -90,6 +102,18 @@
 				AE827CBD3014259900464DE2 /* DitGiffUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AEFF00203014260000464DE2 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				AEFF00013014260000464DE2 /* JetBrainsMono-Regular.ttf */,
+				AEFF00023014260000464DE2 /* JetBrainsMono-Medium.ttf */,
+				AEFF00033014260000464DE2 /* JetBrainsMono-SemiBold.ttf */,
+				AEFF00043014260000464DE2 /* OFL.txt */,
+			);
+			name = Fonts;
+			path = DitGiff/DesignSystem/Fonts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -212,6 +236,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AEFF00113014260000464DE2 /* JetBrainsMono-Regular.ttf in Resources */,
+				AEFF00123014260000464DE2 /* JetBrainsMono-Medium.ttf in Resources */,
+				AEFF00133014260000464DE2 /* JetBrainsMono-SemiBold.ttf in Resources */,
+				AEFF00143014260000464DE2 /* OFL.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

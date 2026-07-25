@@ -22,9 +22,10 @@ struct RootView: View {
     private var screen: some View {
         switch appModel.route {
         case .welcome:
-            // The Welcome screen keeps its own model, so going back starts the setup
-            // over — repository and branches included, the way the prototype does it.
-            WelcomeView { appModel.openDiff() }
+            WelcomeView(model: appModel.welcomeModel) {
+                guard let session = appModel.welcomeModel.makeSession() else { return }
+                appModel.openDiff(session)
+            }
         case .diff:
             DiffView(
                 model: appModel.diffModel,
@@ -46,6 +47,22 @@ struct RootView: View {
 @MainActor
 private func diffRouteAppModel() -> AppModel {
     let model = AppModel()
-    model.openDiff()
+    // Preview only — a placeholder session so the route can open.
+    let repository = GitRepository(
+        rootURL: URL(fileURLWithPath: "/tmp/preview", isDirectory: true),
+        displayName: "preview",
+        head: .branch("feature")
+    )
+    let base = GitBranch(name: "main", fullRef: "refs/heads/main", remote: nil)
+    let compare = GitBranch(name: "feature", fullRef: "refs/heads/feature", remote: nil)
+    model.openDiff(
+        DiffSession(
+            repository: repository,
+            base: base,
+            compare: compare,
+            goal: "",
+            attachedSpecName: nil
+        )
+    )
     return model
 }

@@ -49,6 +49,13 @@ Todos os valores em sRGB.
 | `text-primary` | `#E4EDE8` | `#101815` | código, títulos |
 | `text-secondary` | `#9CAEA5` | `#4F5F58` | rótulos, metadados |
 | `text-tertiary` | `#66776F` | `#7C8B84` | números de linha, contagens |
+| `text-error` | `#C97B88` | `#9A4554` | banner de erro, falha recuperável |
+
+`text-error` é rosa-poeira / vinho — vermelho o bastante para marcar, mas **não** o
+coral de `diff-del` (`#FF5744` no dark / `#E0230E` no light, na paleta Swift de
+revisão 2). Erro e remoção lado a lado têm de ser distinguíveis; o mesmo vermelho
+nas duas leituras deixaria a tela ambígua. Use só no texto do aviso, com sobriedade
+— voz de colega atento, não alarme.
 
 ### Diff
 
@@ -135,4 +142,5 @@ nativamente, escolha a versão mais simples.
 
 Nenhum clichê de IA: sem gradiente roxo, sem ícone de faísca, sem estrelinha, sem
 brilho pulsante em nada gerado por modelo. Sem cor saturada fora do verde e do coral
-do diff. Sem sombra pesada. Sem emoji na interface.
+do diff — com a única exceção semântica de `text-error`, que é rosa/vinho de propósito
+para não colidir com `diff-del`. Sem sombra pesada. Sem emoji na interface.

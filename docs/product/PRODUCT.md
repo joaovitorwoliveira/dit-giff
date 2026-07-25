@@ -68,6 +68,11 @@ deixa pronto pra defender cada decisão.
 - Read-only e BYO-IA via Claude Code headless. Provado por spike.
 - Escopo é uma frase. Faz uma coisa: transforma branch-contra-base em review
   defensável. "Abrir qualquer repo, navegar qualquer código" fica de fora.
+- Contexto pra IA: nem só o diff colado no prompt, nem o projeto inteiro. O agente
+  ganha git read-only escopado (`diff`, `show`, `log`, `status`, `merge-base`,
+  `ls-files` — e nada além) e busca o que precisa. Diff grande não cabe no
+  orçamento de prompt de forma confiável; colar o patch quebra nos MRs que mais
+  importam.
 
 ## Prova (spike, 23/07/2026)
 
@@ -89,8 +94,6 @@ o que resolveria os pontos que o próprio modelo marcou como cegos.
 - De onde vem o one-liner de intenção: digitado pelo usuário, ou inferido do nome
   da branch / commits / título do MR.
 - Design da UI melhor que o GitLab.
-- Nível de contexto dado à IA: só o diff (piso) vs. acesso de leitura ao projeto
-  (teto).
 
 ## Anti-objetivos
 

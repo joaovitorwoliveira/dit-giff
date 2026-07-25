@@ -42,6 +42,9 @@ actor FakeCommandRunner: CommandRunner {
     }
 
     func run(_ request: CommandRequest) async throws -> CommandOutput {
+        // Same cooperative cancel as SystemCommandRunner: a cancelled task does not
+        // get a canned success back as if the command had finished.
+        try Task.checkCancellation()
         receivedRequests.append(request)
 
         // Raised instead of guessing: an unstubbed command is a gap in the test, and
@@ -49,6 +52,7 @@ actor FakeCommandRunner: CommandRunner {
         guard let response = responses[request.invocation] else {
             throw Failure.noStub(request.invocation)
         }
+        try Task.checkCancellation()
         return try response.get()
     }
 }

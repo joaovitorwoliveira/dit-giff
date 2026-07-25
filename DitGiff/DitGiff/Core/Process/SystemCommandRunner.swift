@@ -7,20 +7,29 @@ nonisolated struct SystemCommandRunner: CommandRunner {
     private static let fallbackSearchPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
     func run(_ request: CommandRequest) async throws -> CommandOutput {
-        try await withCheckedThrowingContinuation { continuation in
-            // The work below blocks on two pipe reads and a process wait, so it gets
-            // its own thread and leaves the caller's task free.
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    continuation.resume(returning: try Self.runBlocking(request))
-                } catch {
-                    continuation.resume(throwing: error)
+        let control = ProcessControl()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                // The work below blocks on two pipe reads and a process wait, so it gets
+                // its own thread and leaves the caller's task free.
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let output = try Self.runBlocking(request, control: control)
+                        continuation.resume(returning: output)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
+        } onCancel: {
+            control.cancel()
         }
     }
 
-    private static func runBlocking(_ request: CommandRequest) throws -> CommandOutput {
+    private static func runBlocking(
+        _ request: CommandRequest,
+        control: ProcessControl
+    ) throws -> CommandOutput {
         let environment = ProcessInfo.processInfo.environment
             .merging(request.environment) { _, fromRequest in fromRequest }
 
@@ -44,6 +53,10 @@ nonisolated struct SystemCommandRunner: CommandRunner {
             )
         }
 
+        // Attach after `run()` so `terminate()` is always aimed at a live process.
+        // If the task already cancelled, this terminates immediately.
+        control.attach(process)
+
         // A pipe holds about 64 KB before the writer blocks, and a `git diff` passes
         // that without trying. Reading one pipe to EOF first, or waiting for exit
         // before reading, deadlocks on exactly the input this app exists to handle.
@@ -60,6 +73,12 @@ nonisolated struct SystemCommandRunner: CommandRunner {
 
         reads.wait()
         process.waitUntilExit()
+
+        // Always reap via waitUntilExit above — cancel must not leave a zombie.
+        // Do not return partial pipes as a successful answer.
+        if control.isCancelled {
+            throw CancellationError()
+        }
 
         return CommandOutput(
             standardOutput: String(decoding: standardOutputData.value, as: UTF8.self),
@@ -100,6 +119,48 @@ nonisolated struct SystemCommandRunner: CommandRunner {
             executable: request.executable,
             reason: "not found in PATH (\(searchPath))"
         )
+    }
+}
+
+/// Holds the live `Process` so the cancellation handler can terminate it without
+/// racing the blocking worker, and without calling `terminate` on a process that
+/// never started or has already exited.
+private nonisolated final class ProcessControl: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelled = false
+
+    func attach(_ process: Process) {
+        lock.lock()
+        let shouldTerminate = cancelled
+        self.process = process
+        lock.unlock()
+        if shouldTerminate {
+            terminateIfRunning(process)
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let process = self.process
+        lock.unlock()
+        if let process {
+            terminateIfRunning(process)
+        }
+    }
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    private func terminateIfRunning(_ process: Process) {
+        // `terminate()` is a no-op when the process is not running — that covers the
+        // race where the child exits naturally in the same moment as cancel.
+        guard process.isRunning else { return }
+        process.terminate()
     }
 }
 

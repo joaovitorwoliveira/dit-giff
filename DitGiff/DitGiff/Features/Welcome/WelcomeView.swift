@@ -1,19 +1,16 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Pick a repository, pick two branches, optionally say what the change is for.
-/// Static prototype: sample data, no git, no file dialogs, no drag and drop.
+/// Repositories, branches and change counts come from git; goal and spec stay mocked
+/// until Slice 5.
 struct WelcomeView: View {
     @Environment(\.dsPalette) private var palette
-    @State private var model: WelcomeModel
+    @Bindable var model: WelcomeModel
     private let openDiff: () -> Void
 
-    init(openDiff: @escaping () -> Void) {
-        _model = State(initialValue: WelcomeModel())
-        self.openDiff = openDiff
-    }
-
     init(model: WelcomeModel, openDiff: @escaping () -> Void) {
-        _model = State(initialValue: model)
+        self.model = model
         self.openDiff = openDiff
     }
 
@@ -23,6 +20,13 @@ struct WelcomeView: View {
     var body: some View {
         DSVStack(alignment: .leading, spacing: .s16) {
             WelcomeHeader()
+            if let banner = model.banner {
+                WelcomeBannerView(banner: banner) {
+                    model.dismissBanner()
+                } action: {
+                    model.performBannerAction()
+                }
+            }
             if model.selectedRepository == nil {
                 WelcomeRepositoryPicker(model: model)
             } else {
@@ -33,6 +37,8 @@ struct WelcomeView: View {
         .dsPadding(.all, .s24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dsSurface(palette.surface1)
+        .opacity(model.isOpeningRepository ? WelcomeMetric.disabledOpacity : 1)
+        .allowsHitTesting(!model.isOpeningRepository)
     }
 }
 
@@ -108,14 +114,18 @@ private struct WelcomeFolderSymbol: View {
 private struct WelcomeRepositoryIdentity: View {
     @Environment(\.dsPalette) private var palette
 
-    let repository: WelcomeRepository
+    let name: String
+    let path: String
+    var isEmphasized = true
 
     var body: some View {
         DSVStack(alignment: .leading, spacing: nil) {
-            Text(repository.name)
+            Text(name)
                 .dsText(.body)
-                .foregroundStyle(palette.textPrimary.color)
-            Text(repository.path)
+                .foregroundStyle(
+                    isEmphasized ? palette.textPrimary.color : palette.textTertiary.color
+                )
+            Text(path)
                 .dsText(.label)
                 .foregroundStyle(palette.textTertiary.color)
                 .lineLimit(1)
@@ -125,12 +135,50 @@ private struct WelcomeRepositoryIdentity: View {
     }
 }
 
+private struct WelcomeBannerView: View {
+    @Environment(\.dsPalette) private var palette
+
+    let banner: WelcomeBanner
+    let dismiss: () -> Void
+    let action: () -> Void
+
+    var body: some View {
+        DSVStack(alignment: .leading, spacing: .s8) {
+            DSHStack(alignment: .top, spacing: .s8) {
+                Text(banner.message)
+                    .dsText(.label)
+                    .foregroundStyle(palette.textError.color)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .dsText(.label)
+                        .foregroundStyle(palette.textTertiary.color)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            if banner.actionTitle != nil {
+                Button(action: action) {
+                    Text(banner.actionTitle ?? "")
+                        .dsText(.label)
+                        .underline()
+                        .foregroundStyle(palette.textSecondary.color)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .dsPadding(.all, .s12)
+        .dsSurface(palette.surface2, radius: .md)
+        .dsBorder(palette.border, radius: .md)
+    }
+}
+
 // MARK: - State A: choosing a repository
 
 private struct WelcomeRepositoryPicker: View {
     @Environment(\.dsPalette) private var palette
-
-    let model: WelcomeModel
+    @Bindable var model: WelcomeModel
 
     var body: some View {
         DSVStack(alignment: .leading, spacing: .s8) {
@@ -140,33 +188,98 @@ private struct WelcomeRepositoryPicker: View {
         }
     }
 
+    @ViewBuilder
     private var recentList: some View {
-        DSVStack(alignment: .leading, spacing: nil) {
-            ForEach(Array(WelcomeSampleData.repositories.enumerated()), id: \.element.id) { index, repository in
-                if index > 0 {
-                    Rectangle()
-                        .fill(palette.borderSubtle.color)
-                        .frame(height: WelcomeMetric.hairline)
-                }
-                WelcomeRecentRow(repository: repository) {
-                    model.select(repository)
+        if model.recentRepositories.isEmpty {
+            Text("No recent repositories yet. Open a folder to begin.")
+                .dsText(.label)
+                .foregroundStyle(palette.textTertiary.color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsPadding(.all, .s12)
+                .dsSurface(palette.surface2, radius: .md)
+                .dsClip(.md)
+                .dsBorder(palette.borderSubtle, radius: .md)
+        } else {
+            DSVStack(alignment: .leading, spacing: nil) {
+                ForEach(Array(model.recentRepositories.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(palette.borderSubtle.color)
+                            .frame(height: WelcomeMetric.hairline)
+                    }
+                    WelcomeRecentRow(entry: entry) {
+                        model.selectRecent(entry)
+                    }
                 }
             }
+            .dsSurface(palette.surface2, radius: .md)
+            .dsClip(.md)
+            .dsBorder(palette.borderSubtle, radius: .md)
         }
-        .dsSurface(palette.surface2, radius: .md)
-        .dsClip(.md)
-        .dsBorder(palette.borderSubtle, radius: .md)
     }
 
     private var openRow: some View {
         DSHStack(spacing: .s12) {
             WelcomeSecondaryButton(title: "Open repository…") {
-                model.selectFirstRepository()
+                model.chooseRepository()
             }
             Text("or drop a folder here")
                 .dsText(.label)
-                .foregroundStyle(palette.textTertiary.color)
+                .foregroundStyle(
+                    model.isDropTargeted ? palette.textPrimary.color : palette.textTertiary.color
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsPadding(.vertical, .s4)
+                .dsPadding(.horizontal, .s8)
+                .dsSurface(
+                    model.isDropTargeted ? palette.surface3 : palette.surface2,
+                    radius: .sm
+                )
+                .dsBorder(
+                    model.isDropTargeted ? palette.textTertiary : palette.borderSubtle,
+                    radius: .sm
+                )
+                .onDrop(of: [UTType.fileURL], isTargeted: dropTargetBinding) { providers in
+                    handleDrop(providers)
+                }
         }
+    }
+
+    private var dropTargetBinding: Binding<Bool> {
+        Binding(
+            get: { model.isDropTargeted },
+            set: { model.setDropTargeted($0) }
+        )
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+            Task { @MainActor in
+                if let error {
+                    model.reportDropFailure(
+                        "Could not read that drop (\(error.localizedDescription)). Try “Open repository…” instead."
+                    )
+                    return
+                }
+                let url: URL?
+                if let data = item as? Data {
+                    url = URL(dataRepresentation: data, relativeTo: nil)
+                } else if let pathURL = item as? URL {
+                    url = pathURL
+                } else {
+                    url = nil
+                }
+                guard let url else {
+                    model.reportDropFailure(
+                        "That drop was not a folder Dit Giff could open. Try “Open repository…” instead."
+                    )
+                    return
+                }
+                await model.openDroppedFolder(at: url)
+            }
+        }
+        return true
     }
 }
 
@@ -174,15 +287,25 @@ private struct WelcomeRecentRow: View {
     @Environment(\.dsPalette) private var palette
     @State private var isHovering = false
 
-    let repository: WelcomeRepository
+    let entry: WelcomeRecentEntry
     let select: () -> Void
 
     var body: some View {
         Button(action: select) {
             DSHStack(spacing: .s12) {
                 WelcomeFolderSymbol()
-                WelcomeRepositoryIdentity(repository: repository)
-                Text(repository.currentBranch)
+                WelcomeRepositoryIdentity(
+                    name: entry.displayName,
+                    path: entry.rootPath,
+                    isEmphasized: entry.isAvailable
+                )
+                if entry.isAvailable, let headLabel = entry.headLabel {
+                    Text(headLabel)
+                        .font(DSTextStyle.code.font(fixedSize: WelcomeMetric.identifierSize))
+                        .foregroundStyle(palette.textTertiary.color)
+                        .lineLimit(1)
+                }
+                Text(entry.isAvailable ? "" : "Missing")
                     .font(DSTextStyle.code.font(fixedSize: WelcomeMetric.identifierSize))
                     .foregroundStyle(palette.textTertiary.color)
             }
@@ -190,6 +313,7 @@ private struct WelcomeRecentRow: View {
             .dsPadding(.horizontal, .s12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .dsSurface(isHovering ? palette.surface3 : palette.surface2)
+            .opacity(entry.isAvailable ? 1 : WelcomeMetric.disabledOpacity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -202,6 +326,7 @@ private struct WelcomeSecondaryButton: View {
     @State private var isHovering = false
 
     let title: String
+    var isEnabled = true
     let action: () -> Void
 
     var body: some View {
@@ -215,8 +340,10 @@ private struct WelcomeSecondaryButton: View {
                 .dsBorder(isHovering ? palette.textTertiary : palette.border, radius: .sm)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : WelcomeMetric.disabledOpacity)
         .dsFocusable(radius: .sm)
-        .onHover { isHovering = $0 }
+        .onHover { isHovering = isEnabled && $0 }
     }
 }
 
@@ -229,9 +356,12 @@ private struct WelcomeReviewSetup: View {
     var body: some View {
         DSVStack(alignment: .leading, spacing: .s16) {
             if let repository = model.selectedRepository {
-                WelcomeSelectedRepositoryRow(repository: repository) {
-                    model.clearRepository()
-                }
+                WelcomeSelectedRepositoryRow(
+                    repository: repository,
+                    isFetching: model.isFetching,
+                    fetch: { model.fetch() },
+                    change: { model.clearRepository() }
+                )
             }
             WelcomeBranchSection(model: model)
             WelcomeGoalSection(model: model, openDiff: openDiff)
@@ -242,13 +372,23 @@ private struct WelcomeReviewSetup: View {
 private struct WelcomeSelectedRepositoryRow: View {
     @Environment(\.dsPalette) private var palette
 
-    let repository: WelcomeRepository
+    let repository: GitRepository
+    let isFetching: Bool
+    let fetch: () -> Void
     let change: () -> Void
 
     var body: some View {
         DSHStack(spacing: .s12) {
             WelcomeFolderSymbol()
-            WelcomeRepositoryIdentity(repository: repository)
+            WelcomeRepositoryIdentity(
+                name: repository.displayName,
+                path: repository.rootURL.path
+            )
+            WelcomeSecondaryButton(
+                title: isFetching ? "Fetching…" : "Fetch",
+                isEnabled: !isFetching,
+                action: fetch
+            )
             Button(action: change) {
                 // Links are underlined text; there is no accent hue to color them with.
                 Text("Change")
@@ -257,6 +397,7 @@ private struct WelcomeSelectedRepositoryRow: View {
                     .foregroundStyle(palette.textSecondary.color)
             }
             .buttonStyle(.plain)
+            .disabled(isFetching)
         }
         .dsPadding(.vertical, .s8)
         .dsPadding(.horizontal, .s12)
@@ -282,7 +423,11 @@ private struct WelcomeBranchSection: View {
             if model.compareBranch != nil {
                 Text(model.changeSummary)
                     .font(DSTextStyle.code.font(fixedSize: WelcomeMetric.changeSummarySize))
-                    .foregroundStyle(palette.textSecondary.color)
+                    .foregroundStyle(
+                        model.isCountingChanges
+                            ? palette.textTertiary.color
+                            : palette.textSecondary.color
+                    )
             }
         }
     }
@@ -290,22 +435,21 @@ private struct WelcomeBranchSection: View {
     private var comparePicker: some View {
         WelcomeBranchMenu(
             label: "Compare branch",
-            options: WelcomeSampleData.compareBranches,
+            options: model.branchDisplayNames,
             clearTitle: WelcomeSampleData.compareBranchPlaceholder,
-            selection: model.compareBranch
-        ) { model.compareBranch = $0 }
+            selection: model.compareBranch?.displayName
+        ) { model.selectCompare(displayName: $0) }
             .frame(maxWidth: .infinity)
     }
 
     private var basePicker: some View {
         WelcomeBranchMenu(
             label: "Base branch",
-            options: WelcomeSampleData.baseBranches,
+            options: model.branchDisplayNames,
             clearTitle: nil,
-            selection: model.baseBranch
+            selection: model.baseBranch?.displayName
         ) { branch in
-            guard let branch else { return }
-            model.baseBranch = branch
+            model.selectBase(displayName: branch)
         }
         .frame(width: WelcomeMetric.basePickerWidth)
     }
@@ -530,8 +674,7 @@ private struct WelcomeFooter: View {
                 .dsText(.label)
                 .foregroundStyle(palette.textTertiary.color)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // The diff is the sample diff whatever the branches say: nothing chosen here
-            // reaches it until git does, in slices 2 and 3.
+            // The session is real; the diff screen still draws sample hunks until Slice 3.
             WelcomePrimaryButton(title: "Open diff", isEnabled: model.canOpenDiff, action: openDiff)
         }
     }
@@ -567,28 +710,25 @@ private struct WelcomePrimaryButton: View {
 // MARK: - Previews
 
 @MainActor
-private func welcomeModelWithRepositorySelected() -> WelcomeModel {
-    let model = WelcomeModel()
-    model.selectFirstRepository()
-    return model
+private func previewWelcomeModel() -> WelcomeModel {
+    let runner = FakeCommandRunner()
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("dit-giff-welcome-preview-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let store = try! RecentRepositoriesStore(directoryURL: directory)
+    return WelcomeModel(
+        git: GitService(runner: runner),
+        recentStore: store,
+        directoryPicker: SystemDirectoryPicker()
+    )
 }
 
 #Preview("No repository — dark") {
-    WelcomeView {}
+    WelcomeView(model: previewWelcomeModel()) {}
         .preferredColorScheme(.dark)
 }
 
 #Preview("No repository — light") {
-    WelcomeView {}
-        .preferredColorScheme(.light)
-}
-
-#Preview("Repository selected — dark") {
-    WelcomeView(model: welcomeModelWithRepositorySelected()) {}
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Repository selected — light") {
-    WelcomeView(model: welcomeModelWithRepositorySelected()) {}
+    WelcomeView(model: previewWelcomeModel()) {}
         .preferredColorScheme(.light)
 }

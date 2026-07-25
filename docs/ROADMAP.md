@@ -9,21 +9,39 @@ A ordem importa: cada um destrava o seguinte.
 
 ---
 
-## Slice 2 — Git real: repositório e branches
+## Por que esta ordem
 
-A Welcome para de mentir. Primeiro contato do app com o disco.
+A ordem antiga colocava o diferencial do produto — pistas, nunca veredito; o que um
+revisor perguntaria por quê — no Slice 8, depois do leitor, do highlighting e do chat.
+Isso invertia o risco: a tese que separa o Dit Giff de um visualizador com IA ia ser a
+última coisa a ser testada.
 
-- Abrir pasta pelo seletor nativo e por arrastar; validar que é repositório.
-- Listar branches locais e remotas, descobrir a base provável, contar a divergência.
-- Repositórios recentes que sobrevivem ao fechar o app.
-- Erros com nome: não é repo, sem commits, branch sumiu, repo movido.
+Uma pesquisa competitiva encontrou o [Plannotator](https://github.com/backnotprop/plannotator)
+(open source, ~7.3k stars). Ele já entrega boa parte do que eram os slices 4–7 antigos:
+leitor com marcar-como-lido e teclado, IA read-only pela assinatura da máquina sem API
+key, e explicar trecho selecionado. Competir aí é chegar segundo num terreno ocupado.
 
-**Pronto quando** eu abro o dit-giff de verdade e vejo minhas branches reais.
+O achado técnico que destrava a reordenação: o Plannotator **não cola o diff no prompt**.
+Ele dá ao agente git read-only escopado (`git diff`, `git show`, `git log`, `git status`,
+`git merge-base`, `git ls-files` — e nada além) e deixa o agente buscar sozinho. A razão
+é de engenharia: diff grande não cabe no orçamento de prompt de forma confiável.
+
+Consequência: se o agente lê o diff sozinho, a feature de IA **deixa de depender** do
+parser de diff do Slice 3. A costura com a IA e uma versão mínima de contexto/prompt
+podem vir antes do leitor, do highlighting e do chat — para provar a tese cedo. O
+Slice 3 continua obrigatório e primeiro: sem diff real na tela não há produto. O
+acabamento continua por último.
+
+---
 
 ## Slice 3 — Git real: ler e entender o diff
 
 O maior bloco de engenharia do projeto. Transformar texto do git em algo que a tela
 sabe desenhar.
+
+O objeto de sessão (`DiffSession`: repositório, base, compare) já chega na tela de
+diff pela Welcome — Slice 2 deixou o encaixe pronto. Aqui o trabalho é consumir essa
+sessão e desenhar o diff real no lugar dos dados de exemplo.
 
 - Rodar `git diff base...branch` pela costura que já existe.
 - Parsing: arquivos, status, renomeações, hunks, linhas, e a diferença dentro da linha.
@@ -34,7 +52,44 @@ sabe desenhar.
 **Pronto quando** um MR de 64 arquivos abre e está correto contra o `git diff` no
 terminal.
 
-## Slice 4 — O leitor
+## Slice 4 — A costura com a IA
+
+O que o spike já provou, virando produto. A costura de processos foi construída para
+este momento.
+
+- Chamar `claude -p` headless com a assinatura da máquina; sem API key.
+- Resposta em streaming, cancelável, com escolha de modelo e esforço.
+- Falhar com clareza: `claude` não instalado, não logado, sem rede, tempo esgotado.
+- Um segundo adapter atrás do mesmo protocolo, se o Claude Code não der conta —
+  cursor CLI ou codex entram sem tocar no resto do app.
+
+**Decisão:** o agente recebe git read-only **escopado** (diff, show, log, status,
+merge-base, ls-files — e nada além). Não colamos o diff no prompt. Isso resolve a
+pergunta que o `PRODUCT.md` lista como em aberto (só o diff, ou o projeto inteiro):
+nem um nem outro — ferramentas de leitura, e o agente busca.
+
+**Pronto quando** eu peço uma explicação e ela chega, sem ter configurado nada.
+
+## Slice 5 — Contexto e prompt (mínimo que prova a tese)
+
+Onde o produto se decide. Não é o chat completo nem o leitor polido — é o suficiente
+para eu ver se "pistas, nunca veredito" funciona de verdade, cedo o bastante para
+mudar de ideia.
+
+- O objetivo em uma frase e o `.md` de spec entrando no prompt.
+- Pistas, nunca veredito. É regra de produto, e mora no prompt.
+- Achados ancorados em arquivo e linha, para eu conferir.
+
+**Decisão:** achado cujo arquivo ou linha não existe no patch real é **descartado**.
+Uma pista que aponta para linha inexistente destrói a confiança em todas as outras.
+
+**Decisão:** conteúdo vindo do repositório (o `.md` de spec, um `CLAUDE.md`) é entrada
+**não confiável** quando o prompt o consome — um MR de fork pode plantar instruções
+ali. Tratar como dado, nunca como instrução.
+
+**Pronto quando** a resposta me faz ler melhor, em vez de ler por mim.
+
+## Slice 6 — O leitor
 
 O que faz disso uma ferramenta de leitura longa e não um visualizador.
 
@@ -46,7 +101,7 @@ O que faz disso uma ferramenta de leitura longa e não um visualizador.
 
 **Pronto quando** eu leio um MR inteiro sem perder o lugar.
 
-## Slice 5 — Syntax highlighting
+## Slice 7 — Syntax highlighting
 
 Código sem cor cansa. Fica separado porque é grande e independente.
 
@@ -56,20 +111,7 @@ Código sem cor cansa. Fica separado porque é grande e independente.
 
 **Pronto quando** o diff parece um editor, não um `cat`.
 
-## Slice 6 — A costura com a IA
-
-O que o spike já provou, virando produto. A costura de processos foi construída para
-este momento.
-
-- Chamar `claude -p` headless com a assinatura da máquina; sem API key.
-- Resposta em streaming, cancelável, com escolha de modelo e esforço.
-- Falhar com clareza: `claude` não instalado, não logado, sem rede, tempo esgotado.
-- Um segundo adapter atrás do mesmo protocolo, se o Claude Code não der conta —
-  cursor CLI ou codex entram sem tocar no resto do app.
-
-**Pronto quando** eu peço uma explicação e ela chega, sem ter configurado nada.
-
-## Slice 7 — O chat por diff
+## Slice 8 — O chat por diff
 
 - Explicar um arquivo pelo botão do cabeçalho.
 - Selecionar linhas, popover, explicar ou perguntar; o trecho vira chip na mensagem.
@@ -77,18 +119,6 @@ este momento.
 - Indicador de pensamento enquanto gera.
 
 **Pronto quando** eu discuto um trecho sem sair da leitura.
-
-## Slice 8 — Contexto e prompt
-
-Onde o produto se decide. Está listado como "em aberto" no `PRODUCT.md` e é o que
-separa uma resposta útil de uma genérica.
-
-- O que vai para o modelo: só o diff, ou leitura do projeto inteiro.
-- O objetivo em uma frase e o `.md` de spec entrando no prompt.
-- Pistas, nunca veredito. É regra de produto, e mora no prompt.
-- Achados ancorados em arquivo e linha, para eu conferir.
-
-**Pronto quando** a resposta me faz ler melhor, em vez de ler por mim.
 
 ## Slice 9 — Acabamento
 
@@ -109,3 +139,8 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
   costura de processos com fake e adapter, e a tela Welcome como protótipo estático.
 - **Slice 1 — A tela de diff, estática.** Barra, sidebar com árvore e filtro, leitor com
   hunks e destaque de palavra, popover e chat em casca, tudo com dados de exemplo.
+- **Slice 2 — Git real: repositório e branches.** `GitService` + recentes em JSON,
+  Welcome ligada de verdade (abrir pasta / drop, branches locais e remotas, base
+  provável, contagem cancelável do par selecionado, fetch manual, erros nomeados).
+  `DiffSession` já chega na tela de diff; o diff em si ainda é sample até o Slice 3.
+  Goal e spec `.md` continuam mock — Slice 5.

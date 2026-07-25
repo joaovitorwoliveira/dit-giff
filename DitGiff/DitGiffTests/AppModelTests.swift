@@ -15,10 +15,12 @@ struct AppModelTests {
 
     @Test func openingAndLeavingTheDiffMovesTheRouteBothWays() {
         let model = AppModel()
+        let session = Self.sampleSession
 
-        model.openDiff()
+        model.openDiff(session)
 
         #expect(model.route == .diff)
+        #expect(model.activeDiffSession == session)
 
         model.returnToWelcome()
 
@@ -62,7 +64,7 @@ struct AppModelTests {
         let model = AppModel()
         model.toggleTheme(from: .dark)
 
-        model.openDiff()
+        model.openDiff(Self.sampleSession)
         model.returnToWelcome()
 
         #expect(model.themeOverride == .light)
@@ -72,8 +74,8 @@ struct AppModelTests {
 
     @Test func leavingTheDiffEndsTheReadingSession() throws {
         let diffModel = DiffModel()
-        let model = AppModel(diffModel: diffModel)
-        model.openDiff()
+        let model = AppModel(welcomeModel: AppModel().welcomeModel, diffModel: diffModel)
+        model.openDiff(Self.sampleSession)
         let billingGuard = try #require(diffModel.file(atPath: "Sources/Billing/BillingGuard.swift"))
         diffModel.toggleViewed(billingGuard)
         diffModel.toggleRead(try #require(diffModel.hunk(withID: "h2")))
@@ -90,14 +92,14 @@ struct AppModelTests {
     /// settings are theirs to keep across a trip back to Welcome.
     @Test func leavingTheDiffKeepsTheWorkspaceSettings() {
         let diffModel = DiffModel()
-        let model = AppModel(diffModel: diffModel)
-        model.openDiff()
+        let model = AppModel(welcomeModel: AppModel().welcomeModel, diffModel: diffModel)
+        model.openDiff(Self.sampleSession)
         diffModel.toggleSidebar()
         diffModel.filter = "billing"
         diffModel.reasoningEffort = .max
 
         model.returnToWelcome()
-        model.openDiff()
+        model.openDiff(Self.sampleSession)
 
         #expect(diffModel.isSidebarOpen == false)
         #expect(diffModel.filter == "billing")
@@ -106,12 +108,37 @@ struct AppModelTests {
 
     @Test func theDiffSessionIsTheSameObjectAcrossOpenings() {
         let diffModel = DiffModel()
-        let model = AppModel(diffModel: diffModel)
+        let model = AppModel(welcomeModel: AppModel().welcomeModel, diffModel: diffModel)
 
-        model.openDiff()
+        model.openDiff(Self.sampleSession)
         model.returnToWelcome()
-        model.openDiff()
+        model.openDiff(Self.sampleSession)
 
         #expect(model.diffModel === diffModel)
+    }
+
+    @Test func welcomeModelSurvivesATripToTheDiffAndBack() {
+        let model = AppModel()
+        let welcome = model.welcomeModel
+
+        model.openDiff(Self.sampleSession)
+        model.returnToWelcome()
+
+        #expect(model.welcomeModel === welcome)
+    }
+
+    private static var sampleSession: DiffSession {
+        let repository = GitRepository(
+            rootURL: URL(fileURLWithPath: "/tmp/sample", isDirectory: true),
+            displayName: "sample",
+            head: .branch("feature")
+        )
+        return DiffSession(
+            repository: repository,
+            base: GitBranch(name: "main", fullRef: "refs/heads/main", remote: nil),
+            compare: GitBranch(name: "feature", fullRef: "refs/heads/feature", remote: nil),
+            goal: "",
+            attachedSpecName: nil
+        )
     }
 }

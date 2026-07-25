@@ -6,8 +6,8 @@ enum AppRoute: Equatable, Sendable {
     case diff
 }
 
-/// What survives navigation: which screen is up, which theme was picked, and the diff
-/// session itself.
+/// What survives navigation: which screen is up, which theme was picked, the Welcome
+/// setup, and the diff session itself.
 @MainActor
 @Observable
 final class AppModel {
@@ -15,24 +15,47 @@ final class AppModel {
     /// `nil` follows the OS. Once the reader picks a side, the pick stands.
     private(set) var themeOverride: ColorScheme?
 
+    /// Lives here so returning from the diff does not wipe repository and branch picks.
+    let welcomeModel: WelcomeModel
+
     /// One session for the life of the window, rather than a fresh model per opening.
     /// Reading state has to end when the reader leaves — `returnToWelcome()` is what ends
     /// it — but the filter, the sidebar and the chat's model and effort are how this
     /// person works, not what they are reading, and rebuilding the model would throw
-    /// those away every time. Slice 4's "where I left off" wants the same object anyway.
+    /// those away every time. Slice 6's "where I left off" wants the same object anyway.
     let diffModel: DiffModel
 
-    init(diffModel: DiffModel) {
+    /// Set when the reader opens the diff. Slice 3 will drive the real diff from this;
+    /// the diff screen still draws sample data until then.
+    private(set) var activeDiffSession: DiffSession?
+
+    init(welcomeModel: WelcomeModel, diffModel: DiffModel) {
+        self.welcomeModel = welcomeModel
         self.diffModel = diffModel
     }
 
-    // A default argument would be built outside the main actor, which `DiffModel` is not
-    // available from.
+    /// Composition root: real process runner, git service, and Application Support store.
     convenience init() {
-        self.init(diffModel: DiffModel())
+        let runner = SystemCommandRunner()
+        let git = GitService(runner: runner)
+        let store: RecentRepositoriesStore
+        do {
+            store = try RecentRepositoriesStore()
+        } catch {
+            preconditionFailure("Could not create Application Support for DitGiff: \(error)")
+        }
+        self.init(
+            welcomeModel: WelcomeModel(
+                git: git,
+                recentStore: store,
+                directoryPicker: SystemDirectoryPicker()
+            ),
+            diffModel: DiffModel()
+        )
     }
 
-    func openDiff() {
+    func openDiff(_ session: DiffSession) {
+        activeDiffSession = session
         route = .diff
     }
 

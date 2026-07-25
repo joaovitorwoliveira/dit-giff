@@ -75,6 +75,9 @@ struct DSPalette: Sendable {
     let textPrimary: DSColorValue
     let textSecondary: DSColorValue
     let textTertiary: DSColorValue
+    /// Notices and recoverable failures. Rose, not the coral of `diffDel` — error and
+    /// deletion must stay distinguishable when they share a screen.
+    let textError: DSColorValue
     let diffAdd: DSColorValue
     let diffDel: DSColorValue
     let diffFill: DSDiffFill
@@ -108,6 +111,7 @@ struct DSPalette: Sendable {
         textPrimary: DSColorValue(hex: 0xE7E9EC),
         textSecondary: DSColorValue(hex: 0x9BA1A9),
         textTertiary: DSColorValue(hex: 0x666C75),
+        textError: DSColorValue(hex: 0xC97B88),
         diffAdd: DSColorValue(hex: 0x3DDC5E),
         diffDel: DSColorValue(hex: 0xFF5744),
         diffFill: DSDiffFill(addLine: 0.17, delLine: 0.17, addWord: 0.38, delWord: 0.38),
@@ -135,6 +139,7 @@ struct DSPalette: Sendable {
         textPrimary: DSColorValue(hex: 0x1C1B18),
         textSecondary: DSColorValue(hex: 0x5A574F),
         textTertiary: DSColorValue(hex: 0x908C81),
+        textError: DSColorValue(hex: 0x9A4554),
         diffAdd: DSColorValue(hex: 0x189938),
         diffDel: DSColorValue(hex: 0xE0230E),
         diffFill: DSDiffFill(addLine: 0.15, delLine: 0.14, addWord: 0.30, delWord: 0.28),

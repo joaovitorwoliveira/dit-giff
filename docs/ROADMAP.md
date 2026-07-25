@@ -9,67 +9,7 @@ A ordem importa: cada um destrava o seguinte.
 
 ---
 
-## Por que esta ordem
-
-A ordem antiga colocava o diferencial do produto — pistas, nunca veredito; o que um
-revisor perguntaria por quê — no Slice 8, depois do leitor, do highlighting e do chat.
-Isso invertia o risco: a tese que separa o Dit Giff de um visualizador com IA ia ser a
-última coisa a ser testada.
-
-Uma pesquisa competitiva encontrou o [Plannotator](https://github.com/backnotprop/plannotator)
-(open source, ~7.3k stars). Ele já entrega boa parte do que eram os slices 4–7 antigos:
-leitor com marcar-como-lido e teclado, IA read-only pela assinatura da máquina sem API
-key, e explicar trecho selecionado. Competir aí é chegar segundo num terreno ocupado.
-
-O achado técnico que destrava a reordenação: o Plannotator **não cola o diff no prompt**.
-Ele dá ao agente git read-only escopado (`git diff`, `git show`, `git log`, `git status`,
-`git merge-base`, `git ls-files` — e nada além) e deixa o agente buscar sozinho. A razão
-é de engenharia: diff grande não cabe no orçamento de prompt de forma confiável.
-
-Consequência: se o agente lê o diff sozinho, a feature de IA **deixa de depender** do
-parser de diff do Slice 3. A costura com a IA e uma versão mínima de contexto/prompt
-podem vir antes do leitor, do highlighting e do chat — para provar a tese cedo. O
-acabamento continua por último.
-
-**Refinado no Slice 4:** o diff inteiro continua nunca sendo colado, mas o patch do
-arquivo que o usuário mandou explicar vai colado junto com as ferramentas. Corta a
-latência pela metade e elimina o modo de falha em que o agente monta `base..branch` no
-lugar de `base...branch` — os dois rodam, nenhum dá erro, e mostram diffs diferentes.
-
-**Correção de rota feita durante o Slice 3.** Parte do Slice 6 foi puxada para a frente,
-contra esta ordem, por um motivo específico: com o diff real na tela, um MR de 169
-arquivos travava o app e a sidebar tinha largura fixa. Não era refinamento adiável — era
-a ferramenta não servindo na primeira tentativa de uso. Ler o próprio MR ficou possível
-antes de a IA existir, então valia consertar. O que sobrou do Slice 6 continua depois da
-IA.
-
----
-
-## Slice 5 — Contexto e prompt (mínimo que prova a tese)
-
-Onde o produto se decide. Não é o chat completo nem o leitor polido — é o suficiente
-para eu ver se "pistas, nunca veredito" funciona de verdade, cedo o bastante para
-mudar de ideia.
-
-- O objetivo em uma frase e o `.md` de spec entrando no prompt.
-- Pistas, nunca veredito. É regra de produto, e mora no prompt.
-- Achados ancorados em arquivo e linha, para eu conferir.
-- **Quando vale o agente sair do patch e explorar o repositório.** O Slice 4 travou isso
-  para valer o tempo de espera: exploração livre custou dois minutos no primeiro uso real,
-  lendo arquivos que nem estavam no diff. Mas às vezes é o arquivo vizinho que produz a
-  pista boa. Distinguir os dois casos é trabalho de prompt.
-
-**Decisão:** achado cujo arquivo ou linha não existe no patch real é **descartado**.
-Uma pista que aponta para linha inexistente destrói a confiança em todas as outras.
-O `Patch` do Slice 3 é a fonte de verdade contra a qual conferir.
-
-**Decisão:** conteúdo vindo do repositório (o `.md` de spec, um `CLAUDE.md`) é entrada
-**não confiável** quando o prompt o consome — um MR de fork pode plantar instruções
-ali. Tratar como dado, nunca como instrução.
-
-**Pronto quando** a resposta me faz ler melhor, em vez de ler por mim.
-
-## Slice 6 — O leitor (o que sobrou)
+## Slice 5 — O leitor (o que sobrou)
 
 Marcar como lido, colapsar, esmaecer, a árvore, a sidebar redimensionável, navegar
 clicando no arquivo e a rolagem fluida foram feitos junto com o Slice 3. O que falta:
@@ -84,16 +24,47 @@ clicando no arquivo e a rolagem fluida foram feitos junto com o Slice 3. O que f
 
 **Pronto quando** eu leio um MR inteiro sem tocar no mouse.
 
-## Slice 7 — Syntax highlighting
+## Slice 6 — Syntax highlighting
 
 Código sem cor cansa. Fica separado porque é grande e independente.
 
-- Colorir por linguagem, com a paleta `sx-*` que já está no design system.
+- Colorir por linguagem, com a paleta de syntax que já está no design system. Os valores
+  do modo claro já são Solarized; os do escuro continuam vindo do protótipo v2. Nenhum dos
+  dois está ligado a uma view ainda — hoje o diff pinta tudo com `textPrimary`.
 - As linguagens que eu uso, não todas.
 - Custo controlado: destacar só o que está na tela. A virtualização do Slice 3 já garante
   que só o viewport é materializado; o highlighting precisa respeitar isso.
 
 **Pronto quando** o diff parece um editor, não um `cat`.
+
+## Slice 7 — Contexto e prompt (mínimo que prova a tese)
+
+Onde o produto se decide. Não é o chat completo — é o suficiente para eu ver se
+"pistas, nunca veredito" funciona de verdade.
+
+- O objetivo em uma frase e o `.md` de spec entrando no prompt.
+- Pistas, nunca veredito. É regra de produto, e mora no prompt.
+- Achados ancorados em arquivo e linha, para eu conferir.
+- **Quando vale o agente sair do patch e explorar o repositório.** O Slice 4 travou isso
+  para valer o tempo de espera: exploração livre custou dois minutos no primeiro uso real,
+  lendo arquivos que nem estavam no diff. Mas às vezes é o arquivo vizinho que produz a
+  pista boa. Distinguir os dois casos é trabalho de prompt.
+
+**Decisão:** o diff inteiro nunca vai colado no prompt — não cabe no orçamento de forma
+confiável. Vai o patch do arquivo que eu mandei explicar, junto com as ferramentas de git
+read-only. Colar o patch também elimina o modo de falha em que o agente monta
+`base..branch` no lugar de `base...branch`: os dois rodam, nenhum dá erro, e mostram
+diffs diferentes.
+
+**Decisão:** achado cujo arquivo ou linha não existe no patch real é **descartado**.
+Uma pista que aponta para linha inexistente destrói a confiança em todas as outras.
+O `Patch` do Slice 3 é a fonte de verdade contra a qual conferir.
+
+**Decisão:** conteúdo vindo do repositório (o `.md` de spec, um `CLAUDE.md`) é entrada
+**não confiável** quando o prompt o consome — um MR de fork pode plantar instruções
+ali. Tratar como dado, nunca como instrução.
+
+**Pronto quando** a resposta me faz ler melhor, em vez de ler por mim.
 
 ## Slice 8 — O chat por diff
 
@@ -133,11 +104,14 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
   Welcome ligada de verdade (abrir pasta / drop, branches locais e remotas, base
   provável, contagem cancelável do par selecionado, fetch manual, erros nomeados).
 - **Slice 3 — Git real: ler e entender o diff.** O diff de verdade substituiu os dados
-  de exemplo, e o leitor virou utilizável num MR grande. Trouxe junto, do Slice 6, a
-  sidebar redimensionável, os controles de pasta na árvore, o esmaecimento do que já foi
-  visto e a navegação por clique.
+  de exemplo, e o leitor virou utilizável num MR grande: sidebar redimensionável,
+  controles de pasta na árvore, esmaecimento do que já foi visto e navegação por clique.
 - **Slice 4 — A costura com a IA.** Explicar um arquivo funciona, streamando, com a
   assinatura já logada na máquina. Sem API key e sem passo de configuração.
+- **Paleta e navegação.** O modo claro passou a derivar do Solarized Light, com os acentos
+  do produto (`textError`, `diffAdd`, `diffDel`) preservados. Clicar num arquivo na árvore
+  agora acerta o alvo: o pulo virou uma sequência de uma passada animada e duas corretivas
+  depois que o layout assenta.
 
 ### O que não vale reabrir
 

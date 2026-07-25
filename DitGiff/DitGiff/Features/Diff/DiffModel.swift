@@ -418,13 +418,32 @@ final class DiffModel {
         ) {
         case let .scrollToHeader(path):
             readerScrollNonce &+= 1
-            readerScrollRequest = DiffReaderScrollRequest(path: path, nonce: readerScrollNonce)
+            readerScrollRequest = DiffReaderScrollRequest(
+                path: path,
+                nonce: readerScrollNonce,
+                attempt: DiffReaderScrollRetry.animatedAttempt
+            )
         case .unavailableInReader:
             readerScrollRequest = nil
         }
     }
 
-    /// The viewer calls this after consuming a scroll request so the next click can fire.
+    /// Advances the reader scroll retry sequence after a corrective delay. When the policy
+    /// has no further pass, clears the request so the next sidebar click can fire.
+    func advanceReaderScrollRequest() {
+        guard let request = readerScrollRequest else { return }
+        guard DiffReaderScrollRetry.delayAfter(attempt: request.attempt) != nil else {
+            readerScrollRequest = nil
+            return
+        }
+        readerScrollRequest = DiffReaderScrollRequest(
+            path: request.path,
+            nonce: request.nonce,
+            attempt: request.attempt + 1
+        )
+    }
+
+    /// Ends an in-flight scroll sequence without touching sidebar focus.
     func clearReaderScrollRequest() {
         readerScrollRequest = nil
     }

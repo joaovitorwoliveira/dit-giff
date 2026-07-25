@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Source of truth: the revision 2 palette shipped in `docs/design-handoff/Dit Giff v2.dc.html`,
 /// which supersedes the older values in `docs/product/DESIGN-SYSTEM.md`.
+/// Light now derives from Solarized Light (base3 #FDF6E3, base2 #EEE8D5, base00 #657B83,
+/// base01 #586E75, base1 #93A1A1 and accents); dark still comes from v2.
 
 // Tokens are components rather than `SwiftUI.Color` because a `Color` cannot be
 // compared or have another token derived from it.
@@ -130,28 +132,28 @@ struct DSPalette: Sendable {
     )
 
     static let light = DSPalette(
-        surface0: DSColorValue(hex: 0xEFEDE7),
-        surface1: DSColorValue(hex: 0xF6F4EF),
-        surface2: DSColorValue(hex: 0xFBFAF6),
-        surface3: DSColorValue(hex: 0xE7E4DC),
-        borderSubtle: DSColorValue(hex: 0xE1DDD3),
-        border: DSColorValue(hex: 0xD2CDC1),
-        textPrimary: DSColorValue(hex: 0x1C1B18),
-        textSecondary: DSColorValue(hex: 0x5A574F),
-        textTertiary: DSColorValue(hex: 0x908C81),
+        surface0: DSColorValue(hex: 0xFDF6E3),
+        surface1: DSColorValue(hex: 0xF5EFDC),
+        surface2: DSColorValue(hex: 0xFAF4E1),
+        surface3: DSColorValue(hex: 0xEEE8D5),
+        borderSubtle: DSColorValue(hex: 0xE3DCC6),
+        border: DSColorValue(hex: 0xCFC7AE),
+        textPrimary: DSColorValue(hex: 0x586E75),
+        textSecondary: DSColorValue(hex: 0x657B83),
+        textTertiary: DSColorValue(hex: 0x93A1A1),
         textError: DSColorValue(hex: 0x9A4554),
         diffAdd: DSColorValue(hex: 0x189938),
         diffDel: DSColorValue(hex: 0xE0230E),
         diffFill: DSDiffFill(addLine: 0.15, delLine: 0.14, addWord: 0.30, delWord: 0.28),
         focusRingOpacity: 0.32,
         syntax: DSSyntaxPalette(
-            keyword: DSColorValue(hex: 0x9A3FB8),
-            type: DSColorValue(hex: 0x0F7C79),
-            string: DSColorValue(hex: 0x8A4B00),
-            number: DSColorValue(hex: 0x9E4A00),
-            comment: DSColorValue(hex: 0x8A9199),
-            function: DSColorValue(hex: 0x2E5BD0),
-            punctuation: DSColorValue(hex: 0x6A6F77)
+            keyword: DSColorValue(hex: 0x859900),
+            type: DSColorValue(hex: 0xB58900),
+            string: DSColorValue(hex: 0x2AA198),
+            number: DSColorValue(hex: 0xD33682),
+            comment: DSColorValue(hex: 0x93A1A1),
+            function: DSColorValue(hex: 0x268BD2),
+            punctuation: DSColorValue(hex: 0x657B83)
         ),
         popoverShadow: DSShadow(color: DSColorValue(hex: 0x101815, opacity: 0.12), radius: 12, x: 0, y: 8)
     )

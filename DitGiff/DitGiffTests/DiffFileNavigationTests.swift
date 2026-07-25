@@ -43,6 +43,20 @@ struct DiffFileNavigationTests {
         #expect(DiffFileNavigationResolver.expandsCollapsedFileOnNavigate == false)
     }
 
+    // MARK: - Scroll retry policy
+
+    @Test func scrollRetryAnimatesOnlyTheFirstAttempt() {
+        #expect(DiffReaderScrollRetry.isAnimated(attempt: 0))
+        #expect(DiffReaderScrollRetry.isAnimated(attempt: 1) == false)
+        #expect(DiffReaderScrollRetry.isAnimated(attempt: 2) == false)
+    }
+
+    @Test func scrollRetryDelaysEndAfterTheSecondCorrectivePass() {
+        #expect(DiffReaderScrollRetry.delayAfter(attempt: 0) != nil)
+        #expect(DiffReaderScrollRetry.delayAfter(attempt: 1) != nil)
+        #expect(DiffReaderScrollRetry.delayAfter(attempt: 2) == nil)
+    }
+
     // MARK: - Model
 
     @Test func revealingASectionFileRequestsATopAnchoredScrollAndFocusesIt() throws {
@@ -58,6 +72,7 @@ struct DiffFileNavigationTests {
         #expect(model.focusedFilePath == billingGuard.path)
         let request = try #require(model.readerScrollRequest)
         #expect(request.path == billingGuard.path)
+        #expect(request.attempt == DiffReaderScrollRetry.animatedAttempt)
         #expect(
             DiffFileNavigationResolver.scrollAnchorID(filePath: request.path)
                 == "diff-file:Sources/Billing/BillingGuard.swift"
@@ -80,6 +95,64 @@ struct DiffFileNavigationTests {
 
         #expect(second.path == first.path)
         #expect(second.nonce != first.nonce)
+        #expect(second.attempt == DiffReaderScrollRetry.animatedAttempt)
+    }
+
+    @Test func advancingTheScrollSequencePreservesPathAndNonceAndIncrementsAttempt() throws {
+        let model = makeModel()
+        let billingGuard = try #require(
+            model.file(atPath: "Sources/Billing/BillingGuard.swift")
+        )
+        model.revealFileInReader(billingGuard)
+        let first = try #require(model.readerScrollRequest)
+
+        model.advanceReaderScrollRequest()
+        let second = try #require(model.readerScrollRequest)
+
+        #expect(second.path == first.path)
+        #expect(second.nonce == first.nonce)
+        #expect(second.attempt == first.attempt + 1)
+
+        model.advanceReaderScrollRequest()
+        let third = try #require(model.readerScrollRequest)
+
+        #expect(third.path == first.path)
+        #expect(third.nonce == first.nonce)
+        #expect(third.attempt == DiffReaderScrollRetry.finalAttempt)
+    }
+
+    @Test func advancingBeyondTheFinalAttemptClearsTheRequest() throws {
+        let model = makeModel()
+        let billingGuard = try #require(
+            model.file(atPath: "Sources/Billing/BillingGuard.swift")
+        )
+        model.revealFileInReader(billingGuard)
+        model.advanceReaderScrollRequest()
+        model.advanceReaderScrollRequest()
+        let final = try #require(model.readerScrollRequest)
+        #expect(final.attempt == DiffReaderScrollRetry.finalAttempt)
+
+        model.advanceReaderScrollRequest()
+
+        #expect(model.readerScrollRequest == nil)
+    }
+
+    @Test func revealingAnotherFileWhileASequenceIsInFlightIssuesANewNonce() throws {
+        let model = makeModel()
+        let billingGuard = try #require(
+            model.file(atPath: "Sources/Billing/BillingGuard.swift")
+        )
+        let apiClient = try #require(model.file(atPath: "Sources/HTTP/APIClient.swift"))
+        model.revealFileInReader(billingGuard)
+        let first = try #require(model.readerScrollRequest)
+        model.advanceReaderScrollRequest()
+
+        model.revealFileInReader(apiClient)
+        let second = try #require(model.readerScrollRequest)
+
+        #expect(second.path == apiClient.path)
+        #expect(second.nonce != first.nonce)
+        #expect(second.attempt == DiffReaderScrollRetry.animatedAttempt)
     }
 
     @Test func revealingAFileWithoutHunksFocusesButDoesNotScroll() throws {

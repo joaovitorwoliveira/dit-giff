@@ -425,11 +425,39 @@ nonisolated enum DiffFileNavigationResolver {
     static let expandsCollapsedFileOnNavigate = false
 }
 
+/// How many times the reader retries a sidebar jump after layout settles. Pure policy —
+/// the view scrolls; this decides animation vs corrective passes and when to stop.
+nonisolated enum DiffReaderScrollRetry {
+    static let animatedAttempt = 0
+    static let firstCorrectiveAttempt = 1
+    static let finalAttempt = 2
+
+    /// `DSMotion.jump` is 240ms; the first corrective pass waits for it to finish.
+    static let delayAfterAnimatedAttempt: Duration = .milliseconds(300)
+    static let delayAfterFirstCorrectiveAttempt: Duration = .milliseconds(120)
+
+    static func isAnimated(attempt: Int) -> Bool {
+        attempt == animatedAttempt
+    }
+
+    static func delayAfter(attempt: Int) -> Duration? {
+        switch attempt {
+        case animatedAttempt:
+            return delayAfterAnimatedAttempt
+        case firstCorrectiveAttempt:
+            return delayAfterFirstCorrectiveAttempt
+        default:
+            return nil
+        }
+    }
+}
+
 /// One sidebar click that should scroll the reader. `nonce` makes a repeat click on the
-/// same file observable to `onChange`.
+/// same file observable to `onChange`; `attempt` indexes the retry sequence.
 nonisolated struct DiffReaderScrollRequest: Equatable, Sendable {
     let path: String
     let nonce: UInt
+    let attempt: Int
 }
 
 /// One chat click that should scroll the thread to an existing explanation. `nonce`

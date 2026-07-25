@@ -46,13 +46,7 @@ struct DiffViewer: View {
             }
             .onChange(of: model.readerScrollRequest) { _, request in
                 guard let request else { return }
-                let anchorID = DiffFileNavigationResolver.scrollAnchorID(
-                    filePath: request.path
-                )
-                withAnimation(DSMotion.jump.animation(reduceMotion: reduceMotion)) {
-                    scrollProxy.scrollTo(anchorID, anchor: .top)
-                }
-                model.clearReaderScrollRequest()
+                performReaderScroll(request, scrollProxy: scrollProxy)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -61,6 +55,32 @@ struct DiffViewer: View {
         .onTapGesture {
             guard !isSelectingLines else { return }
             model.clearSelection()
+        }
+    }
+
+    private func performReaderScroll(
+        _ request: DiffReaderScrollRequest,
+        scrollProxy: ScrollViewProxy
+    ) {
+        let anchorID = DiffFileNavigationResolver.scrollAnchorID(filePath: request.path)
+        if DiffReaderScrollRetry.isAnimated(attempt: request.attempt) {
+            withAnimation(DSMotion.jump.animation(reduceMotion: reduceMotion)) {
+                scrollProxy.scrollTo(anchorID, anchor: .top)
+            }
+        } else {
+            scrollProxy.scrollTo(anchorID, anchor: .top)
+        }
+
+        guard let delay = DiffReaderScrollRetry.delayAfter(attempt: request.attempt) else {
+            model.clearReaderScrollRequest()
+            return
+        }
+
+        let nonce = request.nonce
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard model.readerScrollRequest?.nonce == nonce else { return }
+            model.advanceReaderScrollRequest()
         }
     }
 }

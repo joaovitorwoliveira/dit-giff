@@ -17,7 +17,13 @@ actor FakeCommandRunner: CommandRunner {
         }
     }
 
+    private enum StreamStub {
+        case events([CommandStreamEvent])
+        case failure(CommandFailure)
+    }
+
     private var responses: [CommandInvocation: Result<CommandOutput, CommandFailure>] = [:]
+    private var streamResponses: [CommandInvocation: StreamStub] = [:]
     private(set) var receivedRequests: [CommandRequest] = []
 
     init() {}
@@ -41,6 +47,22 @@ actor FakeCommandRunner: CommandRunner {
         responses[CommandInvocation(executable: executable, arguments: arguments)] = .failure(failure)
     }
 
+    func stubStream(
+        _ executable: String,
+        _ arguments: [String] = [],
+        events: [CommandStreamEvent]
+    ) {
+        streamResponses[CommandInvocation(executable: executable, arguments: arguments)] = .events(events)
+    }
+
+    func stubStreamFailure(
+        _ executable: String,
+        _ arguments: [String] = [],
+        _ failure: CommandFailure
+    ) {
+        streamResponses[CommandInvocation(executable: executable, arguments: arguments)] = .failure(failure)
+    }
+
     func run(_ request: CommandRequest) async throws -> CommandOutput {
         // Same cooperative cancel as SystemCommandRunner: a cancelled task does not
         // get a canned success back as if the command had finished.
@@ -54,5 +76,46 @@ actor FakeCommandRunner: CommandRunner {
         }
         try Task.checkCancellation()
         return try response.get()
+    }
+
+    // nonisolated so the protocol witness stays synchronous; actor state is reached
+    // from the producer task below.
+    nonisolated func stream(
+        _ request: CommandRequest
+    ) -> AsyncThrowingStream<CommandStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let events = try await self.streamEvents(for: request)
+                    for event in events {
+                        try Task.checkCancellation()
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func streamEvents(for request: CommandRequest) throws -> [CommandStreamEvent] {
+        try Task.checkCancellation()
+        receivedRequests.append(request)
+
+        guard let stub = streamResponses[request.invocation] else {
+            throw Failure.noStub(request.invocation)
+        }
+        try Task.checkCancellation()
+
+        switch stub {
+        case let .events(events):
+            return events
+        case let .failure(failure):
+            throw failure
+        }
     }
 }

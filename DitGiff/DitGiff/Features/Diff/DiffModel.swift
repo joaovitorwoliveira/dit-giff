@@ -68,9 +68,11 @@ final class DiffModel {
     /// Sample data for previews and unit tests, or a live session driven by git.
     private let usesSampleData: Bool
     private let git: GitService?
-    /// `nil` in a live session. The structural guarantee that live code never reads
-    /// canned agent copy: there is no handle to reach it.
+    /// Sample/preview only. A live session never holds one — that is what keeps
+    /// DiffSampleData copy unreachable from real diffs.
     private let cannedAgent: DiffCannedAgent?
+    /// Live AI seam. Nil in sample mode and in live sessions that have no agent yet.
+    private let agent: (any DiffAgent)?
 
     // MARK: - Load
 
@@ -79,6 +81,9 @@ final class DiffModel {
     private(set) var pendingLoad: Task<Void, Never>?
     /// Bumped on every load start and on return-to-Welcome so a stale task cannot write.
     private var loadGeneration = 0
+    /// Per-file unified body from the last loaded `Patch`. Keyed by destination path.
+    private var filePatchBodies: [String: String] = [:]
+    private var repositoryRoot: URL?
 
     // MARK: - Sidebar
 
@@ -127,10 +132,18 @@ final class DiffModel {
     private(set) var isChatOpen = false
     private(set) var thread: DiffChatThread?
     private(set) var isThinking = false
+    /// Overrides the cycling thinking words while a tool is running — keeps the panel
+    /// alive when the agent is silent between text deltas.
+    private(set) var thinkingActivityLabel: String?
+    /// Consumed by the chat panel to scroll to an existing explanation.
+    private(set) var chatScrollRequest: DiffChatScrollRequest?
+    private var chatScrollNonce: UInt = 0
     var chatModel: DiffChatModelOption
     var reasoningEffort: DiffReasoningEffort
     /// The fake round trip currently in flight. Tests await it instead of sleeping.
     private(set) var pendingReply: Task<Void, Never>?
+    /// The live explain currently in flight (running slot of the one-deep queue).
+    private(set) var pendingExplain: Task<Void, Never>?
 
     private let replyDelay: DiffReplyDelay
     /// Hunks already read before this sample, so the progress starts where the diff does.
@@ -139,6 +152,17 @@ final class DiffModel {
     private var closedDirectories: Set<String> = []
     private var usedHunkReplies: Set<String> = []
     private var nextMessageID = 0
+    /// Completed file explanations only — a stream without `.finished` never lands here.
+    private var completedFileExplanations: [String: String] = [:]
+    /// One thread entry per file path — used to scroll back and to enforce uniqueness.
+    private var explanationMessageIDs: [String: Int] = [:]
+    private var inFlightExplainPath: String?
+    /// At most one waiter. A newer request replaces whoever was waiting.
+    private var queuedExplainPath: String?
+    private var streamingMessageID: Int?
+    private var streamingFilePath: String?
+    /// Bumped when explains are cancelled so a stale task cannot start the queue.
+    private var explainGeneration = 0
 
     // MARK: - Headline (session / sample)
 
@@ -164,6 +188,7 @@ final class DiffModel {
         self.git = nil
         self.usesSampleData = true
         self.cannedAgent = agent
+        self.agent = nil
         self.loadState = .loaded
         self.chatModel = agent.defaultChatModel
         self.reasoningEffort = agent.defaultReasoningEffort
@@ -182,10 +207,11 @@ final class DiffModel {
         refreshReadProgress()
     }
 
-    /// Live construction — empty until `load(_:)` runs. No canned agent: every path that
-    /// would invent a reply has nowhere to get one.
+    /// Live construction — empty until `load(_:)` runs. Sample canned copy stays absent;
+    /// explanations come only from the injected `DiffAgent` when one is present.
     init(
         git: GitService,
+        agent: (any DiffAgent)? = nil,
         replyDelay: DiffReplyDelay = NullDiffReplyDelay()
     ) {
         self.replyDelay = replyDelay
@@ -193,6 +219,7 @@ final class DiffModel {
         self.git = git
         self.usesSampleData = false
         self.cannedAgent = nil
+        self.agent = agent
         self.loadState = .loading
         // Picker defaults only — not agent copy, and not read from DiffSampleData.
         self.chatModel = .opus5
@@ -214,17 +241,39 @@ final class DiffModel {
 
     // MARK: - Agent availability
 
-    /// Whether any agent answer source exists. Live sessions are `false` until Slice 4.
-    var canUseAgent: Bool { cannedAgent != nil }
+    /// Sample/preview chat, composer, and selection popover. False in a live session
+    /// even when a real `DiffAgent` is injected — free-form chat stays Slice 8.
+    var canUseSampleAgent: Bool { cannedAgent != nil }
 
-    /// The thinking chrome. Absent when there is no agent — the panel must not invent words.
-    var thinkingIndicator: DiffThinkingIndicator? { cannedAgent?.thinkingIndicator }
+    /// The thinking chrome. Present whenever any answer source can produce a reply.
+    var thinkingIndicator: DiffThinkingIndicator? {
+        if let cannedAgent {
+            return cannedAgent.thinkingIndicator
+        }
+        if agent != nil {
+            return Self.liveThinkingIndicator
+        }
+        return nil
+    }
 
-    /// Selection popover actions all need an agent. If none, the popover must not appear.
-    var canPresentSelectionPopover: Bool { canUseAgent }
+    /// Selection popover actions all need the sample canned agent. Live keeps them off
+    /// until Slice 8.
+    var canPresentSelectionPopover: Bool { cannedAgent != nil }
 
-    /// General chat (open + composer) needs an agent. Live sessions keep the panel closed.
-    var canOpenChat: Bool { canUseAgent }
+    /// General chat (open + composer) needs the sample canned agent. Live keeps them off.
+    var canOpenChat: Bool { cannedAgent != nil }
+
+    /// Glyphs/words for live explain — not DiffSampleData, so a guardian can prove
+    /// sample copy never leaks into a real session's agent path.
+    private static let liveThinkingIndicator = DiffThinkingIndicator(
+        glyphs: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+        words: [
+            "Thinking",
+            "Reading the file",
+            "Tracing call sites",
+            "Weighing the trade-off",
+        ]
+    )
 
     // MARK: - Headline
 
@@ -251,6 +300,7 @@ final class DiffModel {
         compareBranch = session.compare.displayName
         baseBranch = session.base.displayName
         repositoryName = session.repository.displayName
+        repositoryRoot = session.repository.rootURL
         files = []
         sectionFiles = []
         viewedPaths = []
@@ -260,6 +310,15 @@ final class DiffModel {
         focusedFilePath = nil
         readerScrollRequest = nil
         closedDirectories = []
+        filePatchBodies = [:]
+        completedFileExplanations = [:]
+        explanationMessageIDs = [:]
+        chatScrollRequest = nil
+        cancelAgentExplain(clearQueue: true)
+        // One thread per diff — prose about the previous branch must not survive a switch.
+        thread = nil
+        isChatOpen = false
+        thinkingActivityLabel = nil
         declaredFileCount = 0
         declaredAdditions = 0
         declaredDeletions = 0
@@ -294,6 +353,13 @@ final class DiffModel {
         declaredAdditions = adapted.reduce(0) { $0 + $1.additions }
         declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
         declaredTotalHunkCount = adapted.reduce(0) { $0 + $1.hunks.count }
+        var bodies: [String: String] = [:]
+        for file in patch.files {
+            if let rawBody = file.rawBody {
+                bodies[file.path] = rawBody
+            }
+        }
+        filePatchBodies = bodies
         loadState = .loaded
         refreshFilterCaches()
         refreshReadProgress()
@@ -565,11 +631,14 @@ final class DiffModel {
         isChatOpen = true
     }
 
-    /// Whether the file header's Explain control has an agent answer to show.
-    /// A file with no hunk opens the general thread — only when an agent exists.
+    /// Whether the file header's Explain control can produce an answer.
+    /// Sample: canned hunk copy. Live: a real agent plus a text patch body for that path.
     func canExplainFile(_ file: DiffFile) -> Bool {
-        guard let hunk = file.hunks.first else { return canUseAgent }
-        return hunk.explanation != nil
+        if cannedAgent != nil {
+            guard let hunk = file.hunks.first else { return canUseSampleAgent }
+            return hunk.explanation != nil
+        }
+        return agent != nil && filePatchBodies[file.path] != nil
     }
 
     /// Whether the hunk's Explain / chat actions have an agent answer to show.
@@ -578,19 +647,23 @@ final class DiffModel {
     }
 
     /// Whether explaining the current selection can produce an agent answer.
-    var canExplainSelection: Bool { canUseAgent && selection != nil }
+    var canExplainSelection: Bool { cannedAgent != nil && selection != nil }
 
     /// Whether asking about the current selection can produce an agent answer.
-    var canAskAboutSelection: Bool { canUseAgent && selection != nil }
+    var canAskAboutSelection: Bool { cannedAgent != nil && selection != nil }
 
-    /// The file header's chat button. A file with no hunk in the viewer has nothing
-    /// specific to explain, so it opens the general thread.
+    /// The file header's chat button. Sample keeps the prototype path. Live asks the
+    /// injected agent, with a one-deep queue and a completed cache per file.
     func explainFile(_ file: DiffFile) {
-        guard let hunk = file.hunks.first else {
-            openChat()
+        if cannedAgent != nil {
+            guard let hunk = file.hunks.first else {
+                openChat()
+                return
+            }
+            explain(hunk)
             return
         }
-        explain(hunk)
+        enqueueAgentExplanation(for: file)
     }
 
     func explain(_ hunk: DiffHunk) {
@@ -660,6 +733,295 @@ final class DiffModel {
         return hunk.reply
     }
 
+    // MARK: - Live agent explain (one-deep queue)
+
+    private func enqueueAgentExplanation(for file: DiffFile) {
+        guard agent != nil, filePatchBodies[file.path] != nil else { return }
+
+        if let cached = completedFileExplanations[file.path] {
+            presentCachedExplanation(path: file.path, text: cached)
+            return
+        }
+
+        if inFlightExplainPath == file.path {
+            openThreadIfNeeded()
+            if let messageID = streamingMessageID ?? explanationMessageIDs[file.path] {
+                requestChatScroll(to: messageID)
+            }
+            return
+        }
+
+        if inFlightExplainPath == nil {
+            startAgentExplanation(path: file.path)
+            return
+        }
+
+        // Running slot is busy — replace whoever was waiting. Never grow past one.
+        queuedExplainPath = file.path
+        openThreadIfNeeded()
+    }
+
+    private func presentCachedExplanation(path: String, text: String) {
+        openThreadIfNeeded()
+        if let messageID = explanationMessageIDs[path] {
+            requestChatScroll(to: messageID)
+            return
+        }
+        // Cache survived without a thread entry (should not happen in normal flow).
+        let created = message(
+            role: .agent,
+            text: text,
+            location: fileName(forPath: path)
+        )
+        explanationMessageIDs[path] = created.id
+        append(created)
+        requestChatScroll(to: created.id)
+    }
+
+    private func requestChatScroll(to messageID: Int) {
+        chatScrollNonce &+= 1
+        chatScrollRequest = DiffChatScrollRequest(messageID: messageID, nonce: chatScrollNonce)
+    }
+
+    /// The chat panel calls this after consuming a scroll request so a repeat click fires.
+    func clearChatScrollRequest() {
+        chatScrollRequest = nil
+    }
+
+    private func startAgentExplanation(path: String) {
+        guard
+            let agent,
+            let patch = filePatchBodies[path],
+            let repositoryRoot
+        else {
+            return
+        }
+
+        inFlightExplainPath = path
+        queuedExplainPath = nil
+        streamingMessageID = nil
+        streamingFilePath = path
+
+        openThreadIfNeeded()
+        thread?.hunkID = nil
+        thread?.location = fileName(forPath: path)
+        // One entry per file — drop a prior incomplete/error bubble before streaming again.
+        removeExplanationMessage(forPath: path)
+        isThinking = true
+        thinkingActivityLabel = nil
+
+        let request = AgentExplainRequest(
+            repositoryRoot: repositoryRoot,
+            filePath: path,
+            patch: patch,
+            baseName: baseBranch,
+            compareName: compareBranch,
+            model: chatModel.agentModel,
+            effort: reasoningEffort.agentEffort
+        )
+
+        let generation = explainGeneration
+        pendingExplain?.cancel()
+        pendingExplain = Task { [weak self] in
+            await self?.consumeAgentExplanation(
+                agent: agent,
+                request: request,
+                generation: generation
+            )
+        }
+    }
+
+    private func removeExplanationMessage(forPath path: String) {
+        guard let messageID = explanationMessageIDs.removeValue(forKey: path) else { return }
+        thread?.messages.removeAll { $0.id == messageID }
+    }
+
+    private func consumeAgentExplanation(
+        agent: any DiffAgent,
+        request: AgentExplainRequest,
+        generation: Int
+    ) async {
+        var accumulated = ""
+        var sawFinished = false
+
+        do {
+            for try await event in agent.explainFile(request) {
+                guard !Task.isCancelled, generation == explainGeneration else {
+                    finishAgentExplainSlot(cancelled: true, generation: generation)
+                    return
+                }
+                switch event {
+                case let .textDelta(delta):
+                    accumulated += delta
+                    appendStreamingDelta(accumulated)
+                case let .toolStarted(command):
+                    // Text may already be on screen; tools run silent for minutes without
+                    // this — the panel must never look idle while the stream is alive.
+                    thinkingActivityLabel = Self.readableToolActivity(command)
+                    isThinking = true
+                case .finished:
+                    sawFinished = true
+                }
+            }
+        } catch is CancellationError {
+            finishAgentExplainSlot(cancelled: true, generation: generation)
+            return
+        } catch {
+            guard !Task.isCancelled, generation == explainGeneration else {
+                finishAgentExplainSlot(cancelled: true, generation: generation)
+                return
+            }
+            presentAgentError(error)
+            finishAgentExplainSlot(cancelled: false, generation: generation)
+            return
+        }
+
+        guard !Task.isCancelled, generation == explainGeneration else {
+            finishAgentExplainSlot(cancelled: true, generation: generation)
+            return
+        }
+
+        // `.finished` is the only proof of a complete reply. Ending without it must
+        // not be cached — and must not leave unmarked partial prose in the thread,
+        // because a cut-off caveat reads as the opposite claim.
+        if sawFinished {
+            completedFileExplanations[request.filePath] = accumulated
+            isThinking = false
+            thinkingActivityLabel = nil
+            if streamingMessageID == nil, !accumulated.isEmpty {
+                appendStreamingDelta(accumulated)
+            }
+            if let streamingMessageID {
+                explanationMessageIDs[request.filePath] = streamingMessageID
+            }
+        } else {
+            presentAgentError(
+                AgentError.failed(
+                    reason: "The reply ended before it finished. This explanation is incomplete — ask again."
+                )
+            )
+        }
+
+        finishAgentExplainSlot(cancelled: false, generation: generation)
+    }
+
+    /// Short label for the thinking bubble — git verb, not a shell dump.
+    static func readableToolActivity(_ command: String) -> String {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Working" }
+
+        let tokens = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+        if tokens.first == "git", tokens.count >= 2 {
+            return "Running git \(tokens[1])"
+        }
+        if let first = tokens.first {
+            let short = first.count > 32 ? String(first.prefix(32)) + "…" : first
+            return "Running \(short)"
+        }
+        return "Working"
+    }
+
+    private func appendStreamingDelta(_ text: String) {
+        isThinking = false
+        thinkingActivityLabel = nil
+        let location = streamingFilePath.map(fileName(forPath:))
+        if let streamingMessageID,
+           let index = thread?.messages.firstIndex(where: { $0.id == streamingMessageID })
+        {
+            var messages = thread?.messages ?? []
+            messages[index] = DiffChatMessage(
+                id: streamingMessageID,
+                role: .agent,
+                text: text,
+                location: location,
+                hunkID: nil
+            )
+            thread?.messages = messages
+            return
+        }
+
+        let created = message(role: .agent, text: text, location: location)
+        streamingMessageID = created.id
+        if let streamingFilePath {
+            explanationMessageIDs[streamingFilePath] = created.id
+        }
+        append(created)
+    }
+
+    private func presentAgentError(_ error: Error) {
+        isThinking = false
+        thinkingActivityLabel = nil
+        let text: String
+        if let agentError = error as? AgentError {
+            text = agentError.errorDescription ?? String(describing: agentError)
+        } else {
+            text = error.localizedDescription
+        }
+        let location = streamingFilePath.map(fileName(forPath:))
+        openThreadIfNeeded()
+        // Replace only this file's bubble — earlier explanations in the thread stay.
+        if let messageID = streamingMessageID,
+           let index = thread?.messages.firstIndex(where: { $0.id == messageID })
+        {
+            var messages = thread?.messages ?? []
+            messages[index] = DiffChatMessage(
+                id: messageID,
+                role: .agent,
+                text: text,
+                location: location,
+                hunkID: nil
+            )
+            thread?.messages = messages
+            if let streamingFilePath {
+                explanationMessageIDs[streamingFilePath] = messageID
+            }
+            streamingMessageID = nil
+            return
+        }
+
+        if let streamingFilePath {
+            removeExplanationMessage(forPath: streamingFilePath)
+            let created = message(role: .agent, text: text, location: location)
+            explanationMessageIDs[streamingFilePath] = created.id
+            append(created)
+        } else {
+            append(message(role: .agent, text: text, location: location))
+        }
+        streamingMessageID = nil
+    }
+
+    private func finishAgentExplainSlot(cancelled: Bool, generation: Int) {
+        guard generation == explainGeneration else { return }
+        let next = cancelled ? nil : queuedExplainPath
+        inFlightExplainPath = nil
+        queuedExplainPath = nil
+        streamingMessageID = nil
+        streamingFilePath = nil
+        pendingExplain = nil
+        if cancelled {
+            isThinking = false
+            thinkingActivityLabel = nil
+            return
+        }
+        if let next {
+            startAgentExplanation(path: next)
+        }
+    }
+
+    private func cancelAgentExplain(clearQueue: Bool) {
+        explainGeneration += 1
+        pendingExplain?.cancel()
+        pendingExplain = nil
+        inFlightExplainPath = nil
+        if clearQueue {
+            queuedExplainPath = nil
+        }
+        streamingMessageID = nil
+        streamingFilePath = nil
+        isThinking = false
+        thinkingActivityLabel = nil
+    }
+
     private func startThread(from hunk: DiffHunk, answering text: String) {
         openThreadIfNeeded()
         thread?.hunkID = hunk.id
@@ -725,6 +1087,12 @@ final class DiffModel {
 
         pendingReply?.cancel()
         pendingReply = nil
+        cancelAgentExplain(clearQueue: true)
+        completedFileExplanations = [:]
+        explanationMessageIDs = [:]
+        filePatchBodies = [:]
+        repositoryRoot = nil
+        chatScrollRequest = nil
 
         if usesSampleData {
             viewedPaths = DiffSampleData.defaultViewedPaths
@@ -752,6 +1120,7 @@ final class DiffModel {
         isChatOpen = false
         thread = nil
         isThinking = false
+        thinkingActivityLabel = nil
         usedHunkReplies = []
         closedDirectories = []
         refreshViewedDirectoryStates()

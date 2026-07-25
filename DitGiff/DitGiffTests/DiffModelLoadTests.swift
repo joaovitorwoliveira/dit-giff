@@ -91,6 +91,49 @@ struct DiffModelLoadTests {
 
             return try await inner.run(request)
         }
+
+        /// Same park gate as `run`: while parked, no events and no finish; after
+        /// release, forwards to the inner stub stream.
+        func stream(
+            _ request: CommandRequest
+        ) -> AsyncThrowingStream<CommandStreamEvent, Error> {
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        self.lock.lock()
+                        let marker = self.parkMarker
+                        let shouldPark = request.executable == "git"
+                            && marker.map { needle in request.arguments.contains { $0.contains(needle) } } == true
+                        self.lock.unlock()
+
+                        if shouldPark {
+                            self.lock.lock()
+                            let started = self.startedContinuation
+                            self.startedContinuation = nil
+                            self.lock.unlock()
+                            started?.resume()
+
+                            await withCheckedContinuation { (park: CheckedContinuation<Void, Never>) in
+                                self.lock.lock()
+                                self.parkContinuation = park
+                                self.lock.unlock()
+                            }
+                            try Task.checkCancellation()
+                        }
+
+                        for try await event in self.inner.stream(request) {
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { @Sendable _ in
+                    task.cancel()
+                }
+            }
+        }
     }
 
     private func session(
@@ -338,8 +381,9 @@ struct DiffModelLoadTests {
 
     // MARK: - Live session never invents agent copy
 
-    /// Regression net: every entry that used to spew DiffSampleData on a real diff must
-    /// stay silent and disabled. Reopening this hole would destroy trust before Slice 4.
+    /// Regression net: a live session without an injected agent stays silent on every
+    /// entry that used to spew DiffSampleData. With an agent, only that agent's text
+    /// appears — never canned sample copy.
     @Test func aLiveSessionNeverProducesCannedAgentMessagesThroughAnyEntryPoint() async throws {
         let runner = FakeCommandRunner()
         let session = session()
@@ -350,7 +394,7 @@ struct DiffModelLoadTests {
         await model.pendingLoad?.value
 
         #expect(model.loadState == .loaded)
-        #expect(model.canUseAgent == false)
+        #expect(model.canUseSampleAgent == false)
         #expect(model.canOpenChat == false)
         #expect(model.canPresentSelectionPopover == false)
         #expect(model.thinkingIndicator == nil)
@@ -396,10 +440,11 @@ struct DiffModelLoadTests {
         #expect(model.thread == nil)
         #expect(model.isChatOpen == false)
 
-        // 5. Hunk / file explain (nil explanation + no canned open)
+        // 5. Hunk / file explain with no agent — still silent, no sample copy
         model.explain(hunk)
         model.explainFile(file)
         await model.pendingReply?.value
+        await model.pendingExplain?.value
         #expect(model.thread == nil)
         #expect(model.isChatOpen == false)
         #expect(model.isThinking == false)
@@ -408,6 +453,50 @@ struct DiffModelLoadTests {
         model.selectLines(inHunkWithID: hunk.id, from: 0, through: 0)
         #expect(model.selection != nil)
         #expect(model.canPresentSelectionPopover == false)
+
+        // With a real agent, the panel shows only what the agent streamed — never
+        // DiffSampleData's canned strings.
+        let agent = LiveGuardianAgent(
+            events: [.textDelta("only from the agent"), .finished]
+        )
+        let live = DiffModel(git: GitService(runner: runner), agent: agent)
+        // Re-stub: FakeCommandRunner consumes stubs once.
+        await stubSuccessfulPatch(on: runner, session: session)
+        live.load(session)
+        await live.pendingLoad?.value
+        let liveFile = try #require(live.sectionFiles.first)
+        #expect(live.canExplainFile(liveFile))
+        #expect(live.canUseSampleAgent == false)
+        #expect(live.canOpenChat == false)
+        #expect(live.canPresentSelectionPopover == false)
+
+        live.explainFile(liveFile)
+        await live.pendingExplain?.value
+        let text = try #require(live.thread?.messages.last?.text)
+        #expect(text == "only from the agent")
+        #expect(text != DiffSampleData.openingAgentMessage)
+        #expect(text != DiffSampleData.fallbackReply)
+        #expect(!text.contains("force-unwrap"))
+    }
+}
+
+/// Minimal agent for the guardian's positive path — not shared with other suites.
+private final class LiveGuardianAgent: DiffAgent, @unchecked Sendable {
+    private let events: [AgentEvent]
+
+    init(events: [AgentEvent]) {
+        self.events = events
+    }
+
+    func explainFile(
+        _ request: AgentExplainRequest
+    ) -> AsyncThrowingStream<AgentEvent, Error> {
+        AsyncThrowingStream { continuation in
+            for event in events {
+                continuation.yield(event)
+            }
+            continuation.finish()
+        }
     }
 }
 

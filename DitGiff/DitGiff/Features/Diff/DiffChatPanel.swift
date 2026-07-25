@@ -122,7 +122,7 @@ private struct DiffChatMessageList: View {
                     if model.isThinking, let indicator = model.thinkingIndicator {
                         DiffChatThinkingBubble(
                             glyph: indicator.glyph(step: thinkStep),
-                            word: indicator.word(step: thinkStep)
+                            word: model.thinkingActivityLabel ?? indicator.word(step: thinkStep)
                         )
                         .id("thinking")
                     }
@@ -140,6 +140,18 @@ private struct DiffChatMessageList: View {
                     thinkStep = 0
                 }
                 scrollToEnd(proxy: proxy)
+            }
+            .onChange(of: model.thinkingActivityLabel) { _, _ in
+                if model.isThinking {
+                    scrollToEnd(proxy: proxy)
+                }
+            }
+            .onChange(of: model.chatScrollRequest) { _, request in
+                guard let request else { return }
+                withAnimation(DSMotion.collapse.animation) {
+                    proxy.scrollTo(request.messageID, anchor: .top)
+                }
+                model.clearChatScrollRequest()
             }
         }
         .onReceive(
@@ -302,7 +314,7 @@ private struct DiffChatFooter: View {
                 text: $draft,
                 isFocused: $isComposerFocused,
                 send: send,
-                isEnabled: model.canUseAgent
+                isEnabled: model.canUseSampleAgent
             )
             DSHStack(spacing: .s8) {
                 DiffChatModelPicker(selection: $model.chatModel)
@@ -319,7 +331,7 @@ private struct DiffChatFooter: View {
     }
 
     private func send() {
-        guard model.canUseAgent else { return }
+        guard model.canUseSampleAgent else { return }
         model.send(draft)
         draft = ""
     }

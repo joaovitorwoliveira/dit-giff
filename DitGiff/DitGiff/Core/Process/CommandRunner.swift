@@ -7,17 +7,21 @@ nonisolated struct CommandRequest: Equatable, Sendable {
     let workingDirectory: URL?
     /// Merged over the inherited environment, so `PATH` survives unless replaced.
     let environment: [String: String]
+    /// Written to the child's stdin and closed. Nil leaves stdin alone (inherited).
+    let standardInput: String?
 
     init(
         executable: String,
         arguments: [String] = [],
         workingDirectory: URL? = nil,
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        standardInput: String? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
         self.workingDirectory = workingDirectory
         self.environment = environment
+        self.standardInput = standardInput
     }
 
     var invocation: CommandInvocation {
@@ -62,10 +66,20 @@ nonisolated struct CommandOutput: Equatable, Sendable {
     }
 }
 
+nonisolated enum CommandStreamEvent: Equatable, Sendable {
+    case standardOutputLine(String)
+    case standardErrorLine(String)
+    case exited(code: Int32)
+}
+
 /// The seam. Everything that wants to run `git` or `claude` goes through here, and
 /// exactly one type behind it touches `Process`.
 nonisolated protocol CommandRunner: Sendable {
     func run(_ request: CommandRequest) async throws -> CommandOutput
+    /// Cancelling the consuming Task ends the stream without throwing and kills the
+    /// child. Stream end is therefore not proof the output is complete — the consumer
+    /// needs its own completeness criterion.
+    func stream(_ request: CommandRequest) -> AsyncThrowingStream<CommandStreamEvent, Error>
 }
 
 /// A non-zero exit code is deliberately not in here: it is an answer, not a failure.

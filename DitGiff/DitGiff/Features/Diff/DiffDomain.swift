@@ -432,6 +432,13 @@ nonisolated struct DiffReaderScrollRequest: Equatable, Sendable {
     let nonce: UInt
 }
 
+/// One chat click that should scroll the thread to an existing explanation. `nonce`
+/// makes a repeat click on the same message observable to `onChange`.
+nonisolated struct DiffChatScrollRequest: Equatable, Sendable {
+    let messageID: Int
+    let nonce: UInt
+}
+
 /// One code row's vertical span in the hunk grid's coordinate space.
 nonisolated struct DiffCodeRowFrame: Equatable, Sendable {
     var minY: Double

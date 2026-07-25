@@ -26,6 +26,29 @@ nonisolated struct SystemCommandRunner: CommandRunner {
         }
     }
 
+    func stream(_ request: CommandRequest) -> AsyncThrowingStream<CommandStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let control = ProcessControl()
+            // Cancel must reach ProcessControl directly. Wrapping the worker in another
+            // Task left a window where producer.cancel() ran before withTaskCancellationHandler
+            // was installed, so the child survived. onTermination is the consumer-cancel seam.
+            continuation.onTermination = { @Sendable _ in
+                control.cancel()
+            }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try Self.streamBlocking(
+                        request,
+                        control: control,
+                        continuation: continuation
+                    )
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
     private static func runBlocking(
         _ request: CommandRequest,
         control: ProcessControl
@@ -43,6 +66,7 @@ nonisolated struct SystemCommandRunner: CommandRunner {
         let standardErrorPipe = Pipe()
         process.standardOutput = standardOutputPipe
         process.standardError = standardErrorPipe
+        let standardInputPipe = attachedStandardInputPipe(for: request, process: process)
 
         do {
             try process.run()
@@ -71,6 +95,10 @@ nonisolated struct SystemCommandRunner: CommandRunner {
             standardErrorData.store(standardErrorPipe.fileHandleForReading.readDataToEndOfFile())
         }
 
+        // Readers must be running before stdin is written: a child that echoes stdin
+        // can fill the stdout pipe and stall while we are still writing.
+        try writeAndCloseStandardInput(standardInputPipe, text: request.standardInput)
+
         reads.wait()
         process.waitUntilExit()
 
@@ -85,6 +113,104 @@ nonisolated struct SystemCommandRunner: CommandRunner {
             standardError: String(decoding: standardErrorData.value, as: UTF8.self),
             exitCode: process.terminationStatus
         )
+    }
+
+    private static func streamBlocking(
+        _ request: CommandRequest,
+        control: ProcessControl,
+        continuation: AsyncThrowingStream<CommandStreamEvent, Error>.Continuation
+    ) throws {
+        let environment = ProcessInfo.processInfo.environment
+            .merging(request.environment) { _, fromRequest in fromRequest }
+
+        let process = Process()
+        process.executableURL = try resolvedExecutableURL(for: request, environment: environment)
+        process.arguments = request.arguments
+        process.currentDirectoryURL = request.workingDirectory
+        process.environment = environment
+
+        let standardOutputPipe = Pipe()
+        let standardErrorPipe = Pipe()
+        process.standardOutput = standardOutputPipe
+        process.standardError = standardErrorPipe
+        let standardInputPipe = attachedStandardInputPipe(for: request, process: process)
+
+        do {
+            try process.run()
+        } catch {
+            throw CommandFailure.launchFailed(
+                executable: request.executable,
+                reason: error.localizedDescription
+            )
+        }
+
+        control.attach(process)
+
+        // Blocking availableData on dedicated queues, matching run()'s style.
+        // readabilityHandler must be cleared on EOF or the handle retains the
+        // handler and leaks across runs.
+        let reads = DispatchGroup()
+
+        DispatchQueue.global(qos: .userInitiated).async(group: reads) {
+            readLines(from: standardOutputPipe.fileHandleForReading) { line in
+                continuation.yield(.standardOutputLine(line))
+            }
+        }
+        DispatchQueue.global(qos: .userInitiated).async(group: reads) {
+            readLines(from: standardErrorPipe.fileHandleForReading) { line in
+                continuation.yield(.standardErrorLine(line))
+            }
+        }
+
+        try writeAndCloseStandardInput(standardInputPipe, text: request.standardInput)
+
+        reads.wait()
+        process.waitUntilExit()
+
+        // Always reap via waitUntilExit above — cancel must not leave a zombie.
+        // Do not yield `.exited` after cancel: the consumer already dropped the stream.
+        if control.isCancelled {
+            continuation.finish(throwing: CancellationError())
+            return
+        }
+
+        continuation.yield(.exited(code: process.terminationStatus))
+        continuation.finish()
+    }
+
+    private static func attachedStandardInputPipe(
+        for request: CommandRequest,
+        process: Process
+    ) -> Pipe? {
+        guard request.standardInput != nil else { return nil }
+        let pipe = Pipe()
+        process.standardInput = pipe
+        return pipe
+    }
+
+    private static func writeAndCloseStandardInput(_ pipe: Pipe?, text: String?) throws {
+        guard let pipe, let text else { return }
+        let handle = pipe.fileHandleForWriting
+        try handle.write(contentsOf: Data(text.utf8))
+        try handle.close()
+    }
+
+    private static func readLines(from handle: FileHandle, emit: (String) -> Void) {
+        var buffer = Data()
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            buffer.append(chunk)
+            while let newline = buffer.firstIndex(of: 0x0A) {
+                let lineData = buffer[buffer.startIndex..<newline]
+                let afterNewline = buffer.index(after: newline)
+                buffer.removeSubrange(buffer.startIndex..<afterNewline)
+                emit(String(decoding: lineData, as: UTF8.self))
+            }
+        }
+        if !buffer.isEmpty {
+            emit(String(decoding: buffer, as: UTF8.self))
+        }
     }
 
     // Resolving `PATH` here instead of delegating to `/usr/bin/env` is what keeps a

@@ -9,18 +9,19 @@ nonisolated struct PatchAssemblyTests {
     // MARK: - Unit: assemble
 
     @Test func assembleParsesTextHunksAndCountsLines() throws {
+        let body = """
+            @@ -1,2 +1,3 @@
+             keep
+            -old
+            +new
+            +extra
+            """
         let envelopes = [
             PatchFileEnvelope(
                 path: "f.txt",
                 oldPath: nil,
                 change: .modified,
-                body: .text("""
-                @@ -1,2 +1,3 @@
-                 keep
-                -old
-                +new
-                +extra
-                """),
+                body: .text(body),
                 oldMode: "100644",
                 newMode: "100644"
             ),
@@ -35,6 +36,7 @@ nonisolated struct PatchAssemblyTests {
         #expect(file.deletions == 1)
         #expect(file.isBinary == false)
         #expect(file.isSubmodule == false)
+        #expect(file.rawBody == body)
     }
 
     @Test func assembleLeavesBinarySubmoduleAndNoContentWithoutHunks() throws {
@@ -78,11 +80,37 @@ nonisolated struct PatchAssemblyTests {
         #expect(patch.files[0].isBinary)
         #expect(patch.files[0].hunks.isEmpty)
         #expect(patch.files[0].additions == 0)
+        #expect(patch.files[0].rawBody == nil)
         #expect(patch.files[1].isSubmodule)
+        #expect(patch.files[1].rawBody == nil)
         #expect(patch.files[2].change == .added)
         #expect(patch.files[2].hunks.isEmpty)
+        #expect(patch.files[2].rawBody == nil)
         #expect(patch.files[3].change == .modified)
         #expect(patch.files[3].hunks.isEmpty)
+        #expect(patch.files[3].rawBody == nil)
+    }
+
+    @Test func assemblePreservesExactEnvelopeTextAsRawBody() throws {
+        let body = """
+            @@ -1 +1 @@
+            -old
+            +new
+            """
+        let envelopes = [
+            PatchFileEnvelope(
+                path: "Exact.swift",
+                oldPath: nil,
+                change: .modified,
+                body: .text(body),
+                oldMode: "100644",
+                newMode: "100644"
+            ),
+        ]
+
+        let patch = try Patch.assemble(from: envelopes)
+        let file = try #require(patch.files.first)
+        #expect(file.rawBody == body)
     }
 
     @Test func assembleTagsHunkParserErrorsWithFilePath() {

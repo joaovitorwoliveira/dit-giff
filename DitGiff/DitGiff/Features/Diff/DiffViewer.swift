@@ -105,6 +105,10 @@ private enum DiffViewerMetric {
 
     /// Dimmed chrome for AI actions that have nothing to say yet (Slice 4).
     static let disabledOpacity: Double = 0.35
+
+    /// SF Symbol point size inside the explain control — sits in the same 19pt frame
+    /// the hand-drawn icon used.
+    static let explainSparklesSize: CGFloat = 13
 }
 
 // MARK: - Sticky file header
@@ -199,12 +203,18 @@ private struct DiffExplainFileButton: View {
 
     var body: some View {
         Button(action: action) {
-            DiffExplainFileIcon()
+            Image(systemName: "sparkles")
+                .font(.system(size: DiffViewerMetric.explainSparklesSize))
                 .foregroundStyle(palette.textTertiary.color)
+                .frame(
+                    width: DiffIconMetric.explainFileSize,
+                    height: DiffIconMetric.explainFileSize
+                )
                 .padding(DiffViewerMetric.iconButtonPadding)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointerStyle(.link)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
         .accessibilityLabel("Explain this file")
@@ -242,6 +252,7 @@ private struct DiffViewedButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointerStyle(.link)
         .accessibilityLabel(isViewed ? "Mark as not viewed" : "Mark as viewed")
         .accessibilityAddTraits(isViewed ? .isSelected : [])
     }

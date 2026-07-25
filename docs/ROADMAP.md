@@ -31,6 +31,11 @@ parser de diff do Slice 3. A costura com a IA e uma versão mínima de contexto/
 podem vir antes do leitor, do highlighting e do chat — para provar a tese cedo. O
 acabamento continua por último.
 
+**Refinado no Slice 4:** o diff inteiro continua nunca sendo colado, mas o patch do
+arquivo que o usuário mandou explicar vai colado junto com as ferramentas. Corta a
+latência pela metade e elimina o modo de falha em que o agente monta `base..branch` no
+lugar de `base...branch` — os dois rodam, nenhum dá erro, e mostram diffs diferentes.
+
 **Correção de rota feita durante o Slice 3.** Parte do Slice 6 foi puxada para a frente,
 contra esta ordem, por um motivo específico: com o diff real na tela, um MR de 169
 arquivos travava o app e a sidebar tinha largura fixa. Não era refinamento adiável — era
@@ -39,29 +44,6 @@ antes de a IA existir, então valia consertar. O que sobrou do Slice 6 continua 
 IA.
 
 ---
-
-## Slice 4 — A costura com a IA
-
-O que o spike já provou, virando produto. A costura de processos foi construída para
-este momento.
-
-- Chamar `claude -p` headless com a assinatura da máquina; sem API key.
-- Resposta em streaming, cancelável, com escolha de modelo e esforço.
-- Falhar com clareza: `claude` não instalado, não logado, sem rede, tempo esgotado.
-- Um segundo adapter atrás do mesmo protocolo, se o Claude Code não der conta —
-  cursor CLI ou codex entram sem tocar no resto do app.
-
-**Decisão:** o agente recebe git read-only **escopado** (diff, show, log, status,
-merge-base, ls-files — e nada além). Não colamos o diff no prompt. Isso resolve a
-pergunta que o `PRODUCT.md` lista como em aberto (só o diff, ou o projeto inteiro):
-nem um nem outro — ferramentas de leitura, e o agente busca.
-
-**Onde encaixar:** o leitor já tem o lugar da IA construído e desligado. `DiffCannedAgent`
-é a única fonte de texto de agente e vale `nil` em sessão real, o que desabilita explicar,
-o popover de seleção e o chat. O Slice 4 **introduz uma fonte real** no lugar desse `nil`;
-não há `if` espalhado para lembrar de trocar.
-
-**Pronto quando** eu peço uma explicação e ela chega, sem ter configurado nada.
 
 ## Slice 5 — Contexto e prompt (mínimo que prova a tese)
 
@@ -72,6 +54,10 @@ mudar de ideia.
 - O objetivo em uma frase e o `.md` de spec entrando no prompt.
 - Pistas, nunca veredito. É regra de produto, e mora no prompt.
 - Achados ancorados em arquivo e linha, para eu conferir.
+- **Quando vale o agente sair do patch e explorar o repositório.** O Slice 4 travou isso
+  para valer o tempo de espera: exploração livre custou dois minutos no primeiro uso real,
+  lendo arquivos que nem estavam no diff. Mas às vezes é o arquivo vizinho que produz a
+  pista boa. Distinguir os dois casos é trabalho de prompt.
 
 **Decisão:** achado cujo arquivo ou linha não existe no patch real é **descartado**.
 Uma pista que aponta para linha inexistente destrói a confiança em todas as outras.
@@ -111,13 +97,17 @@ Código sem cor cansa. Fica separado porque é grande e independente.
 
 ## Slice 8 — O chat por diff
 
-- Explicar um arquivo pelo botão do cabeçalho.
-- Selecionar linhas, popover, explicar ou perguntar; o trecho vira chip na mensagem.
-- Uma thread por diff, que morre quando eu troco de branch.
-- Indicador de pensamento enquanto gera.
+O Slice 4 já entregou explicar arquivo pelo cabeçalho, a thread que acumula e morre com
+a branch, e o indicador de atividade. O que falta é conversar.
 
-A casca inteira já existe e está desligada em sessão real. Ligar é trocar a fonte de
-resposta, não construir a tela.
+- Perguntar em texto livre pelo composer, que hoje fica visível com o envio desabilitado.
+- Histórico de verdade: a pergunta seguinte lembra da anterior. A continuidade vem de
+  processo vivo alimentado por stdin, **não** de retomar sessão do disco — o Slice 4
+  decidiu não persistir sessão para não poluir o `claude -c` do usuário no próprio
+  repositório dele.
+- Selecionar linhas, popover, explicar ou perguntar; o trecho vira chip na mensagem.
+- Avisar ao trocar de modelo no meio da thread. Hoje não faz sentido — cada explicação é
+  uma chamada independente e não há contexto a perder. Com histórico, passa a ter.
 
 **Pronto quando** eu discuto um trecho sem sair da leitura.
 
@@ -143,51 +133,46 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
   Welcome ligada de verdade (abrir pasta / drop, branches locais e remotas, base
   provável, contagem cancelável do par selecionado, fetch manual, erros nomeados).
 - **Slice 3 — Git real: ler e entender o diff.** O diff de verdade substituiu os dados
-  de exemplo, e o leitor virou utilizável num MR grande.
+  de exemplo, e o leitor virou utilizável num MR grande. Trouxe junto, do Slice 6, a
+  sidebar redimensionável, os controles de pasta na árvore, o esmaecimento do que já foi
+  visto e a navegação por clique.
+- **Slice 4 — A costura com a IA.** Explicar um arquivo funciona, streamando, com a
+  assinatura já logada na máquina. Sem API key e sem passo de configuração.
 
-### O que o Slice 3 decidiu, e não vale reabrir
+### O que não vale reabrir
 
-- **Dois comandos git, casados por caminho.** O patch unificado dá o corpo; um
-  `git diff --raw -z` dá status, renomeação e modo de forma autoritativa. Ler o status a
-  partir do cabeçalho `diff --git a/… b/…` é ambíguo com nome de arquivo que tem espaço.
-  O casamento é por caminho de destino, nunca por posição, e caminho órfão de qualquer
-  lado **falha alto**. Mostrar o status de um arquivo no diff de outro, em silêncio, é o
-  pior defeito possível num produto que vive de confiança.
-- **Formato forçado por `-c`.** `core.quotePath=false`, `diff.noprefix=false`,
-  `mnemonicPrefix=false`, prefixos explícitos. A config global do usuário pode quebrar o
-  parsing, e o bug só apareceria na máquina de quem tem aquela config.
-- **Tipo limpo + adaptador.** O parser produz um `Patch` que só contém a verdade do git;
-  uma camada fina converte no que a tela desenha. Os campos de IA não contaminam o tipo
-  que representa o que o git disse.
-- **O retorno de carro é conteúdo, não separador.** O git separa as linhas do patch com
-  LF sozinho. Limpar o `\r` esconderia um commit que só converte CRLF para LF — que é
-  exatamente a mudança invisível que um leitor de diff precisa mostrar. Confirmado nos
-  bytes, não no papel.
-- **Sessão real nunca vê texto de IA inventado.** `DiffCannedAgent` é a única fonte de
-  resposta enlatada e vale `nil` ao vivo; explicar, popover e chat ficam desabilitados
-  até o Slice 4. É estrutural, não uma flag: o Slice 4 precisa *introduzir* uma fonte,
-  não lembrar de checar um `if`. Um teste exercita todas as portas de entrada.
-- **SwiftUI deu conta da rolagem. AppKit não foi preciso.** A previsão antiga era que um
-  diff grande exigiria `NSTableView`. O travamento não era volume: a virtualização
-  existia só no nível do arquivo, e cada arquivo materializado desenhava todos os hunks e
-  todas as linhas, com um `ScrollView` horizontal por hunk. Com virtualização até a
-  linha, um `Text` por linha e um único `ScrollView`, 900 arquivos rolam liso. **Não
-  reabra a migração para AppKit sem medir primeiro.**
-- **Linha longa quebra; não há rolagem horizontal.** A rolagem horizontal exigia
-  `ScrollView` bidirecional, e um `ScrollView` que rola num eixo propõe largura ilimitada
-  ao conteúdo — o que faz `maxWidth: .infinity` deixar de significar "ocupe a tela".
-  Três bugs de layout seguidos saíram daí. Quebrar a linha eliminou a causa e removeu
-  código.
+Do Slice 3:
 
-### Puxado do Slice 6 junto com o Slice 3
+- **Dois comandos git, casados por caminho de destino.** O patch dá o corpo, o
+  `--raw -z` dá status e renomeação. Caminho órfão de qualquer lado **falha alto** —
+  mostrar o status de um arquivo no diff de outro, em silêncio, é o pior defeito
+  possível num produto que vive de confiança.
+- **Formato forçado por `-c`** (`core.quotePath`, `diff.noprefix`, `mnemonicPrefix`).
+  A config global do usuário quebraria o parsing, e só na máquina de quem a tem.
+- **Tipo limpo + adaptador.** O `Patch` só contém a verdade do git; uma camada fina
+  converte no que a tela desenha.
+- **O retorno de carro é conteúdo, não separador.** Limpar o `\r` esconderia um commit
+  que só converte CRLF para LF — a mudança invisível que um leitor precisa mostrar.
+- **SwiftUI deu conta da rolagem.** O travamento não era volume, era virtualização parada
+  no nível do arquivo. **Não reabra a migração para AppKit sem medir primeiro.**
+- **Linha longa quebra; não há rolagem horizontal.** Um `ScrollView` que rola num eixo
+  propõe largura ilimitada, e `maxWidth: .infinity` deixa de significar "ocupe a tela".
 
-- Sidebar redimensionável por arrasto, com largura persistida. Durante o gesto só uma
-  linha guia se move; o layout é aplicado uma vez ao soltar, porque redimensionar a cada
-  pixel invalidava todo o conteúdo materializado e travava o app.
-- Controles de pasta na árvore: marcar todos os descendentes como vistos, com estado de
-  três valores (nenhum, alguns, todos) e invalidação de cache uma vez por lote.
-- Arquivo e pasta vistos aparecem esmaecidos na árvore.
-- Clicar num arquivo na árvore leva o leitor até ele, ancorado no topo. Ancorar no topo e
-  não no centro é deliberado: centralizado joga o cabeçalho do arquivo acima da dobra.
-  Arquivo colapsado não é expandido ao navegar — navegar e expandir são gestos
-  diferentes.
+Do Slice 4, tudo verificado empiricamente e não por documentação:
+
+- **A trava de permissão é `--tools Bash` + `--permission-mode dontAsk` + os seis
+  `--allowedTools` de git.** `--allowedTools` sozinha **não restringe nada** — auto-aprova
+  o que lista e nega nada. `--permission-mode manual` é aceito e **silenciosamente
+  ignorado**. `deny: ["Bash"]` mata o git junto. Lista de proibidos foi rejeitada por
+  princípio: bloqueia só o que enumera.
+- **`--safe-mode` em toda chamada.** Sem ele, o `CLAUDE.md`, os hooks e as settings do
+  repositório aberto alcançam o agente — e a branch de um terceiro executaria código na
+  máquina só por ser aberta para leitura.
+- **`.finished` é a única prova de resposta completa**, e depende do evento `result` do
+  CLI. Stream que acaba sem ele é falha, nunca prosa parcial deixada na tela.
+- **Cada falha tem seu detector, nenhum lê stderr.** Binário ausente na localização;
+  não logado por `claude auth status --json` antes de gastar chamada; sem rede no segundo
+  `api_retry` (o CLI tenta dez vezes por 184s e nunca fica em silêncio); travado por 60s
+  sem evento nenhum.
+- **O protocolo do agente fala em produto, não em transporte.** Tudo que é Claude Code
+  vive num adapter só, que é o que mantém a troca por outro CLI barata.

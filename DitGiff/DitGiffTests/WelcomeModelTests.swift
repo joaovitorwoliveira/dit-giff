@@ -112,6 +112,48 @@ struct WelcomeModelTests {
             }
             return try await inner.run(request)
         }
+
+        /// Same park gate as `run`: while parked, no events and no finish; after
+        /// release, forwards to the inner stub stream.
+        func stream(
+            _ request: CommandRequest
+        ) -> AsyncThrowingStream<CommandStreamEvent, Error> {
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        self.lock.lock()
+                        let marker = self.parkMarker
+                        let shouldPark = request.executable == "git"
+                            && marker.map { needle in request.arguments.contains { $0.contains(needle) } } == true
+                        self.lock.unlock()
+
+                        if shouldPark {
+                            self.lock.lock()
+                            let started = self.startedContinuation
+                            self.startedContinuation = nil
+                            self.lock.unlock()
+                            started?.resume()
+
+                            await withCheckedContinuation { (park: CheckedContinuation<Void, Never>) in
+                                self.lock.lock()
+                                self.parkContinuation = park
+                                self.lock.unlock()
+                            }
+                        }
+
+                        for try await event in self.inner.stream(request) {
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { @Sendable _ in
+                    task.cancel()
+                }
+            }
+        }
     }
 
     @MainActor

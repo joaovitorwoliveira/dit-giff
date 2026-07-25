@@ -49,7 +49,13 @@ final class AppModel {
                 recentStore: store,
                 directoryPicker: SystemDirectoryPicker()
             ),
-            diffModel: DiffModel(git: git)
+            diffModel: DiffModel(
+                git: git,
+                agent: ClaudeCodeDiffAgent(
+                    runner: runner,
+                    binaryLocator: ClaudeBinaryLocator(runner: runner)
+                )
+            )
         )
     }
 

@@ -10,6 +10,31 @@ nonisolated struct PatchFile: Equatable, Sendable {
     let isSubmodule: Bool
     let additions: Int
     let deletions: Int
+    /// Exact unified-section bytes this file was parsed from. Kept so the agent can
+    /// receive what git produced without reconstructing a patch that might diverge.
+    let rawBody: String?
+
+    init(
+        path: String,
+        oldPath: String?,
+        change: PatchFileChange,
+        hunks: [PatchHunk],
+        isBinary: Bool,
+        isSubmodule: Bool,
+        additions: Int,
+        deletions: Int,
+        rawBody: String? = nil
+    ) {
+        self.path = path
+        self.oldPath = oldPath
+        self.change = change
+        self.hunks = hunks
+        self.isBinary = isBinary
+        self.isSubmodule = isSubmodule
+        self.additions = additions
+        self.deletions = deletions
+        self.rawBody = rawBody
+    }
 }
 
 /// A complete merge-base diff: every changed file with hunks ready for the reader.
@@ -47,7 +72,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 isBinary: false,
                 isSubmodule: false,
                 additions: counts.additions,
-                deletions: counts.deletions
+                deletions: counts.deletions,
+                rawBody: body
             )
 
         case .binary:
@@ -59,7 +85,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 isBinary: true,
                 isSubmodule: false,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                rawBody: nil
             )
 
         case .submodule:
@@ -71,7 +98,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 isBinary: false,
                 isSubmodule: true,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                rawBody: nil
             )
 
         case .noContent:
@@ -83,7 +111,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 isBinary: false,
                 isSubmodule: false,
                 additions: 0,
-                deletions: 0
+                deletions: 0,
+                rawBody: nil
             )
         }
     }

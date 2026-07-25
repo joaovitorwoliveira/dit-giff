@@ -16,7 +16,7 @@ Stack: Swift / SwiftUI, native macOS.
 | Where | What |
 | --- | --- |
 | [`docs/product/PRODUCT.md`](docs/product/PRODUCT.md) | Product: problem, value pillars, what is decided, anti-goals. Read before proposing scope. |
-| [`docs/product/SWIFT-SETUP.md`](docs/product/SWIFT-SETUP.md) | Setup and the technical primitives, written for someone coming from JS. |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The slices from here to v1. Where the current work sits, and what it unblocks. |
 | `DitGiff/DitGiff/DesignSystem/` | The design system in Swift. Every color, spacing, type and motion value lives here. |
 | `DitGiff/` | The app. Open `DitGiff.xcodeproj` from here. |
 | `assets/icon/` | Icon drawn in code (`render-icon.swift`). |

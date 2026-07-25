@@ -64,7 +64,7 @@ deixa pronto pra defender cada decisão.
 ## O que está decidido
 
 - Stack: Swift / macOS nativo. É um produto pessoal, pra uso desde o dia um, e uma
-  escolha deliberada de craft e aprendizado. Setup em `SWIFT-SETUP.md`.
+  escolha deliberada de craft e aprendizado.
 - Read-only e BYO-IA via Claude Code headless. Provado por spike.
 - Escopo é uma frase. Faz uma coisa: transforma branch-contra-base em review
   defensável. "Abrir qualquer repo, navegar qualquer código" fica de fora.

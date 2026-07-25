@@ -54,4 +54,4 @@ cp assets/icon/AppIcon.appiconset/* DitGiff/DitGiff/Assets.xcassets/AppIcon.appi
 
 - [`AGENTS.md`](AGENTS.md) — product summary, conventions, and the rules that do not bend.
 - [`docs/product/PRODUCT.md`](docs/product/PRODUCT.md) — what the product is and why.
-- [`docs/product/SWIFT-SETUP.md`](docs/product/SWIFT-SETUP.md) — getting started with Swift.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — the slices from here to v1.

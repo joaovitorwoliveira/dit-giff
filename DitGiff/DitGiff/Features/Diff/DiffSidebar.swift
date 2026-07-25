@@ -77,20 +77,29 @@ private struct DiffSidebarHeader: View {
     }
 
     private var branchLine: some View {
-        DSHStack(spacing: .s4) {
-            Text(model.compareBranch)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                // Compare yields first when the pair is too wide; the base stays whole.
-                .layoutPriority(-1)
-            Text("→")
-                .layoutPriority(1)
-            Text(model.baseBranch)
-                .lineLimit(1)
-                .layoutPriority(1)
+        DSVStack(alignment: .leading, spacing: .s4) {
+            if !model.repositoryName.isEmpty {
+                Text(model.repositoryName)
+                    .font(DSTextStyle.code.font(fixedSize: DiffSidebarMetric.nameSize))
+                    .foregroundStyle(palette.textPrimary.color)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            DSHStack(spacing: .s4) {
+                Text(model.compareBranch)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // Compare yields first when the pair is too wide; the base stays whole.
+                    .layoutPriority(-1)
+                Text("→")
+                    .layoutPriority(1)
+                Text(model.baseBranch)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+            .font(DSTextStyle.code.font(fixedSize: DiffSidebarMetric.branchSize))
+            .foregroundStyle(palette.textSecondary.color)
         }
-        .font(DSTextStyle.code.font(fixedSize: DiffSidebarMetric.branchSize))
-        .foregroundStyle(palette.textSecondary.color)
     }
 
     private var progressBar: some View {

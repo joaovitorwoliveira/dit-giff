@@ -74,6 +74,9 @@ private enum DiffViewerMetric {
 
     /// The `dg-sel-line` mark: a leading rule on every selected row.
     static let selectionBarWidth: CGFloat = 3
+
+    /// Dimmed chrome for AI actions that have nothing to say yet (Slice 4).
+    static let disabledOpacity: Double = 0.35
 }
 
 // MARK: - Sticky file header
@@ -93,7 +96,11 @@ private struct DiffFileStickyHeader: View {
             collapseButton
             pathLabel
             counters
-            DiffExplainFileButton { model.explainFile(file) }
+            DiffExplainFileButton(
+                isEnabled: model.canExplainFile(file)
+            ) {
+                model.explainFile(file)
+            }
             DiffViewedButton(isViewed: isViewed) { model.toggleViewed(file) }
         }
         .dsPadding(.leading, .s8)
@@ -158,22 +165,25 @@ private struct DiffExplainFileButton: View {
     @Environment(\.dsPalette) private var palette
     @State private var isHovering = false
 
+    let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             DiffExplainFileIcon()
                 .foregroundStyle(
-                    isHovering ? palette.textPrimary.color : palette.textTertiary.color
+                    isHovering && isEnabled ? palette.textPrimary.color : palette.textTertiary.color
                 )
                 .padding(DiffViewerMetric.iconButtonPadding)
                 .background {
                     RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                        .fill(isHovering ? palette.surface3.color : Color.clear)
+                        .fill(isHovering && isEnabled ? palette.surface3.color : Color.clear)
                 }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
         .onHover { isHovering = $0 }
         .accessibilityLabel("Explain this file")
     }
@@ -290,7 +300,8 @@ private struct DiffHunkBlock: View {
         // Anchored above the hunk, not above the selected rows: precise line-relative
         // placement fights the nested scroll views, and simple+correct wins here.
         .overlay(alignment: .top) {
-            if isSelectedHunk {
+            // No agent ⇒ every popover action is dead. Prefer no popover over a corpse.
+            if isSelectedHunk, model.canPresentSelectionPopover {
                 DiffSelectionPopover(model: model)
                     .alignmentGuide(.top) { $0[.bottom] + DSSpace.s8.points }
                     .zIndex(1)
@@ -368,14 +379,22 @@ private struct DiffHunkActions: View {
     let hunk: DiffHunk
     let model: DiffModel
 
+    private var canExplain: Bool { model.canExplain(hunk) }
+
     var body: some View {
         DSHStack(spacing: .s4) {
-            DiffHunkIconButton(accessibilityLabel: "Explain this hunk") {
+            DiffHunkIconButton(
+                accessibilityLabel: "Explain this hunk",
+                isEnabled: canExplain
+            ) {
                 model.explain(hunk)
             } label: {
                 DiffHunkExplainIcon()
             }
-            DiffHunkIconButton(accessibilityLabel: "Chat about this hunk") {
+            DiffHunkIconButton(
+                accessibilityLabel: "Chat about this hunk",
+                isEnabled: canExplain
+            ) {
                 // Same entry as explain until the chat panel grows its own verb.
                 model.explain(hunk)
             } label: {
@@ -393,6 +412,7 @@ private struct DiffHunkIconButton<Label: View>: View {
     @State private var isHovering = false
 
     let accessibilityLabel: String
+    var isEnabled: Bool = true
     let action: () -> Void
     @ViewBuilder let label: () -> Label
 
@@ -400,16 +420,18 @@ private struct DiffHunkIconButton<Label: View>: View {
         Button(action: action) {
             label()
                 .foregroundStyle(
-                    isHovering ? palette.textPrimary.color : palette.textTertiary.color
+                    isHovering && isEnabled ? palette.textPrimary.color : palette.textTertiary.color
                 )
                 .padding(DiffViewerMetric.hunkActionPadding)
                 .background {
                     RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                        .fill(isHovering ? palette.surface3.color : Color.clear)
+                        .fill(isHovering && isEnabled ? palette.surface3.color : Color.clear)
                 }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
         .onHover { isHovering = $0 }
         .accessibilityLabel(accessibilityLabel)
     }

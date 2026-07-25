@@ -13,7 +13,7 @@ enum DiffLayout {
 }
 
 /// The diff screen's shell: the bar on top, and under it the change map, the diff, and
-/// the conversation.
+/// the conversation — or a loading / failure stand-in while the patch is fetched.
 struct DiffView: View {
     @Environment(\.dsPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,10 +25,29 @@ struct DiffView: View {
     var body: some View {
         DSVStack(spacing: nil) {
             DiffTopBar(model: model, back: back, toggleTheme: toggleTheme)
-            regions
+            content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dsSurface(palette.surface0)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.loadState {
+        case .loading:
+            DiffLoadStatusView(
+                title: "Loading diff…",
+                detail: "Reading the patch for \(model.compareBranch) → \(model.baseBranch)."
+            )
+        case let .failed(message):
+            DiffLoadStatusView(
+                title: "Could not load this diff",
+                detail: message,
+                isError: true
+            )
+        case .loaded:
+            regions
+        }
     }
 
     private var regions: some View {
@@ -72,12 +91,41 @@ struct DiffView: View {
     }
 }
 
+// MARK: - Load status
+
+private struct DiffLoadStatusView: View {
+    @Environment(\.dsPalette) private var palette
+
+    let title: String
+    let detail: String
+    var isError: Bool = false
+
+    var body: some View {
+        DSVStack(alignment: .center, spacing: .s12) {
+            Text(title)
+                .dsText(.panelTitle)
+                .foregroundStyle(isError ? palette.textError.color : palette.textPrimary.color)
+                .multilineTextAlignment(.center)
+            Text(detail)
+                .dsText(.body)
+                .foregroundStyle(palette.textSecondary.color)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: DiffViewMetric.statusMaxWidth)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .dsPadding(.all, .s24)
+        .dsSurface(palette.surface0)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Metrics
 
 /// The values the design system's closed scales do not spell. Nothing else in this file
 /// may hold a raw number.
 private enum DiffViewMetric {
     static let hairline: CGFloat = 1
+    static let statusMaxWidth: CGFloat = 420
 }
 
 // MARK: - Previews

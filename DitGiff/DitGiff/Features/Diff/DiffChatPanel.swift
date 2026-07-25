@@ -56,6 +56,7 @@ private enum DiffChatPanelMetric {
     static let composerMaxHeight: CGFloat = 120
     static let selectVerticalPadding: CGFloat = 2
     static let selectControlHeight: CGFloat = 22
+    static let disabledOpacity: Double = 0.35
 }
 
 // MARK: - Header
@@ -118,10 +119,10 @@ private struct DiffChatMessageList: View {
                         DiffChatBubble(message: message)
                             .id(message.id)
                     }
-                    if model.isThinking {
+                    if model.isThinking, let indicator = model.thinkingIndicator {
                         DiffChatThinkingBubble(
-                            glyph: model.thinkingIndicator.glyph(step: thinkStep),
-                            word: model.thinkingIndicator.word(step: thinkStep)
+                            glyph: indicator.glyph(step: thinkStep),
+                            word: indicator.word(step: thinkStep)
                         )
                         .id("thinking")
                     }
@@ -300,7 +301,8 @@ private struct DiffChatFooter: View {
             DiffChatComposer(
                 text: $draft,
                 isFocused: $isComposerFocused,
-                send: send
+                send: send,
+                isEnabled: model.canUseAgent
             )
             DSHStack(spacing: .s8) {
                 DiffChatModelPicker(selection: $model.chatModel)
@@ -317,6 +319,7 @@ private struct DiffChatFooter: View {
     }
 
     private func send() {
+        guard model.canUseAgent else { return }
         model.send(draft)
         draft = ""
     }
@@ -328,6 +331,7 @@ private struct DiffChatComposer: View {
     @Binding var text: String
     var isFocused: FocusState<Bool>.Binding
     let send: () -> Void
+    var isEnabled: Bool = true
 
     @State private var contentHeight = DiffChatPanelMetric.composerMinHeight
 
@@ -353,7 +357,10 @@ private struct DiffChatComposer: View {
             .dsFocusRing(isFocused.wrappedValue, radius: .md)
             .overlay(alignment: .topLeading) { placeholder }
             .background(alignment: .topLeading) { heightProbe }
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : DiffChatPanelMetric.disabledOpacity)
             .onKeyPress(.return, phases: .down) { keyPress in
+                guard isEnabled else { return .handled }
                 if keyPress.modifiers.contains(.shift) {
                     return .ignored
                 }

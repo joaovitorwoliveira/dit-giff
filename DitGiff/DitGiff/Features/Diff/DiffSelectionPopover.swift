@@ -39,6 +39,8 @@ struct DiffSelectionPopover: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(DiffSelectionPopoverRowStyle())
+        .disabled(!model.canExplainSelection)
+        .opacity(model.canExplainSelection ? 1 : DiffSelectionPopoverMetric.disabledOpacity)
     }
 
     private var divider: some View {
@@ -72,9 +74,14 @@ struct DiffSelectionPopover: View {
             )
             .onSubmit { sendQuestion() }
 
-            DiffSelectionSendButton(isEnabled: true, action: sendQuestion)
+            DiffSelectionSendButton(
+                isEnabled: model.canAskAboutSelection,
+                action: sendQuestion
+            )
         }
         .dsPadding(.all, .s8)
+        .disabled(!model.canAskAboutSelection)
+        .opacity(model.canAskAboutSelection ? 1 : DiffSelectionPopoverMetric.disabledOpacity)
     }
 
     private var locationLine: some View {
@@ -103,6 +110,7 @@ private enum DiffSelectionPopoverMetric {
     static let fieldVerticalPadding: CGFloat = 6
     static let sendPadding: CGFloat = 6
     static let locationSize: CGFloat = 11
+    static let disabledOpacity: Double = 0.35
 }
 
 // MARK: - Controls

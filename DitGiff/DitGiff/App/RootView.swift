@@ -46,8 +46,11 @@ struct RootView: View {
 
 @MainActor
 private func diffRouteAppModel() -> AppModel {
-    let model = AppModel()
-    // Preview only — a placeholder session so the route can open.
+    // Sample DiffModel so the preview draws without git. `load` is a no-op on sample.
+    let model = AppModel(
+        welcomeModel: AppModel().welcomeModel,
+        diffModel: DiffModel()
+    )
     let repository = GitRepository(
         rootURL: URL(fileURLWithPath: "/tmp/preview", isDirectory: true),
         displayName: "preview",

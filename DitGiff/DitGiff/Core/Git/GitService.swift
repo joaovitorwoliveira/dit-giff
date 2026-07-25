@@ -146,12 +146,78 @@ nonisolated struct GitService: Sendable {
             return Self.countNULSeparatedPaths(output.standardOutput)
         }
 
-        let stderr = output.standardError
-        if stderr.localizedCaseInsensitiveContains("no merge base") {
-            throw GitError.noCommonAncestor(base: base.displayName, compare: compare.displayName)
+        throw compareFailure(output: output, base: base, compare: compare)
+    }
+
+    // MARK: - Diff patch
+
+    /// Unified diff text for `base...compare` (merge-base form). Format is forced via
+    /// `-c` so a user's `diff.noprefix` / `mnemonicPrefix` / `quotePath` cannot break
+    /// downstream parsing.
+    func diffPatch(
+        in repository: GitRepository,
+        base: GitBranch,
+        compare: GitBranch
+    ) async throws -> String {
+        try await ensureRefExists(base, in: repository)
+        try await ensureRefExists(compare, in: repository)
+
+        let range = "\(base.fullRef)...\(compare.fullRef)"
+        let output = try await runGit(
+            arguments: Self.unifiedDiffArguments(range: range),
+            workingDirectory: repository.rootURL
+        )
+
+        if output.didSucceed {
+            return output.standardOutput
         }
 
-        throw GitError.couldNotCompare(base: base.displayName, compare: compare.displayName)
+        throw compareFailure(output: output, base: base, compare: compare)
+    }
+
+    /// Per-file envelopes for `base...compare`: status/modes from `diff --raw -z`,
+    /// bodies split from the unified patch. Does not parse hunks or code lines.
+    func diffFileEnvelopes(
+        in repository: GitRepository,
+        base: GitBranch,
+        compare: GitBranch
+    ) async throws -> [PatchFileEnvelope] {
+        let patch = try await diffPatch(in: repository, base: base, compare: compare)
+        let raw = try await diffRaw(in: repository, base: base, compare: compare)
+        return try PatchEnvelope.parse(unifiedDiff: patch, rawDiff: raw)
+    }
+
+    /// Full patch for `base...compare`: envelopes assembled with parsed hunks.
+    func loadPatch(
+        in repository: GitRepository,
+        base: GitBranch,
+        compare: GitBranch
+    ) async throws -> Patch {
+        let envelopes = try await diffFileEnvelopes(in: repository, base: base, compare: compare)
+        return try Patch.assemble(from: envelopes)
+    }
+
+    /// NUL-separated `--raw` records for the same range as `diffPatch`. Authoritative
+    /// status, modes, and paths (including renames/copies).
+    func diffRaw(
+        in repository: GitRepository,
+        base: GitBranch,
+        compare: GitBranch
+    ) async throws -> String {
+        try await ensureRefExists(base, in: repository)
+        try await ensureRefExists(compare, in: repository)
+
+        let range = "\(base.fullRef)...\(compare.fullRef)"
+        let output = try await runGit(
+            arguments: Self.rawDiffArguments(range: range),
+            workingDirectory: repository.rootURL
+        )
+
+        if output.didSucceed {
+            return output.standardOutput
+        }
+
+        throw compareFailure(output: output, base: base, compare: compare)
     }
 
     // MARK: - Fetch
@@ -217,6 +283,50 @@ nonisolated struct GitService: Sendable {
     private static let fetchEnvironment: [String: String] = baseEnvironment.merging([
         "GIT_SSH_COMMAND": "ssh -oBatchMode=yes -oStrictHostKeyChecking=accept-new",
     ]) { _, new in new }
+
+    /// Shared `-c` knobs so user config cannot change path quoting or prefixes.
+    private static let diffFormatConfig: [String] = [
+        "-c", "core.quotePath=false",
+        "-c", "diff.noprefix=false",
+        "-c", "diff.mnemonicPrefix=false",
+    ]
+
+    static func unifiedDiffArguments(range: String) -> [String] {
+        diffFormatConfig + [
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--find-renames",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            range,
+        ]
+    }
+
+    static func rawDiffArguments(range: String) -> [String] {
+        diffFormatConfig + [
+            "diff",
+            "--raw",
+            "-z",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--find-renames",
+            range,
+        ]
+    }
+
+    private func compareFailure(
+        output: CommandOutput,
+        base: GitBranch,
+        compare: GitBranch
+    ) -> GitError {
+        let stderr = output.standardError
+        if stderr.localizedCaseInsensitiveContains("no merge base") {
+            return .noCommonAncestor(base: base.displayName, compare: compare.displayName)
+        }
+        return .couldNotCompare(base: base.displayName, compare: compare.displayName)
+    }
 
     private func ensureRefExists(_ branch: GitBranch, in repository: GitRepository) async throws {
         let output = try await runGit(

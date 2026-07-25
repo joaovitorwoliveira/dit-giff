@@ -11,12 +11,47 @@ nonisolated protocol DiffReplyDelay: Sendable {
 nonisolated struct RandomDiffReplyDelay: DiffReplyDelay {
     let milliseconds: ClosedRange<Int>
 
-    init(milliseconds: ClosedRange<Int> = DiffSampleData.replyDelayRange) {
+    init(milliseconds: ClosedRange<Int>) {
         self.milliseconds = milliseconds
     }
 
     func wait() async throws {
         try await Task.sleep(for: .milliseconds(Int.random(in: milliseconds)))
+    }
+}
+
+/// Live sessions have no fake round-trip. Slice 4 will own real latency.
+nonisolated struct NullDiffReplyDelay: DiffReplyDelay {
+    func wait() async throws {}
+}
+
+/// The only door from `DiffModel` into `DiffSampleData`'s canned agent copy.
+/// Present in sample/preview mode; **absent** in a live session. Every path that would
+/// invent an agent answer must go through this value — so a live model cannot reach
+/// that copy without growing a second source, which is the point of Slice 4.
+private struct DiffCannedAgent: Sendable {
+    let openingMessage: String
+    let thinkingIndicator: DiffThinkingIndicator
+    let fallbackReply: String
+    let defaultChatModel: DiffChatModelOption
+    let defaultReasoningEffort: DiffReasoningEffort
+
+    func explainSelectionReply(lineCountLabel: String) -> String {
+        DiffSampleData.explainSelectionReply(lineCountLabel: lineCountLabel)
+    }
+
+    func selectionQuestionReply(location: String, question: String) -> String {
+        DiffSampleData.selectionQuestionReply(location: location, question: question)
+    }
+
+    static var prototype: DiffCannedAgent {
+        DiffCannedAgent(
+            openingMessage: DiffSampleData.openingAgentMessage,
+            thinkingIndicator: DiffSampleData.thinkingIndicator,
+            fallbackReply: DiffSampleData.fallbackReply,
+            defaultChatModel: DiffSampleData.defaultChatModel,
+            defaultReasoningEffort: DiffSampleData.defaultReasoningEffort
+        )
     }
 }
 
@@ -26,9 +61,24 @@ nonisolated struct RandomDiffReplyDelay: DiffReplyDelay {
 @MainActor
 @Observable
 final class DiffModel {
-    let files: [DiffFile]
+    private(set) var files: [DiffFile]
     /// The files the center viewer shows, in its own order.
-    let sectionFiles: [DiffFile]
+    private(set) var sectionFiles: [DiffFile]
+
+    /// Sample data for previews and unit tests, or a live session driven by git.
+    private let usesSampleData: Bool
+    private let git: GitService?
+    /// `nil` in a live session. The structural guarantee that live code never reads
+    /// canned agent copy: there is no handle to reach it.
+    private let cannedAgent: DiffCannedAgent?
+
+    // MARK: - Load
+
+    private(set) var loadState: DiffLoadState
+    /// The in-flight patch load. Tests await or cancel it instead of racing the clock.
+    private(set) var pendingLoad: Task<Void, Never>?
+    /// Bumped on every load start and on return-to-Welcome so a stale task cannot write.
+    private var loadGeneration = 0
 
     // MARK: - Sidebar
 
@@ -50,43 +100,177 @@ final class DiffModel {
     private(set) var isChatOpen = false
     private(set) var thread: DiffChatThread?
     private(set) var isThinking = false
-    var chatModel = DiffSampleData.defaultChatModel
-    var reasoningEffort = DiffSampleData.defaultReasoningEffort
-    /// The copy the panel cycles while an answer is on its way, so the view never has
-    /// to reach into the sample data itself.
-    let thinkingIndicator = DiffSampleData.thinkingIndicator
+    var chatModel: DiffChatModelOption
+    var reasoningEffort: DiffReasoningEffort
     /// The fake round trip currently in flight. Tests await it instead of sleeping.
     private(set) var pendingReply: Task<Void, Never>?
 
     private let replyDelay: DiffReplyDelay
     /// Hunks already read before this sample, so the progress starts where the diff does.
-    private let readHunkBaseline: Int
+    /// Zero for a live session — only the hunks on screen count.
+    private var readHunkBaseline: Int
     private var closedDirectories: Set<String> = []
     private var usedHunkReplies: Set<String> = []
     private var nextMessageID = 0
 
+    // MARK: - Headline (session / sample)
+
+    private(set) var compareBranch: String
+    private(set) var baseBranch: String
+    private(set) var repositoryName: String
+    private var declaredFileCount: Int
+    private var declaredAdditions: Int
+    private var declaredDeletions: Int
+    private var declaredTotalHunkCount: Int
+
+    /// Sample / preview / unit-test construction — no git, DiffSampleData on screen,
+    /// and a `DiffCannedAgent` so the prototype chat still answers.
     init(
-        replyDelay: DiffReplyDelay = RandomDiffReplyDelay(),
+        replyDelay: DiffReplyDelay = RandomDiffReplyDelay(
+            milliseconds: DiffSampleData.replyDelayRange
+        ),
         readHunkBaseline: Int = DiffSampleData.readHunkBaseline
     ) {
+        let agent = DiffCannedAgent.prototype
         self.replyDelay = replyDelay
         self.readHunkBaseline = readHunkBaseline
+        self.git = nil
+        self.usesSampleData = true
+        self.cannedAgent = agent
+        self.loadState = .loaded
+        self.chatModel = agent.defaultChatModel
+        self.reasoningEffort = agent.defaultReasoningEffort
         files = DiffSampleData.files
         sectionFiles = DiffSampleData.sectionFiles
         viewedPaths = DiffSampleData.defaultViewedPaths
         collapsedPaths = DiffSampleData.defaultViewedPaths
+        compareBranch = DiffSampleData.compareBranch
+        baseBranch = DiffSampleData.baseBranch
+        repositoryName = ""
+        declaredFileCount = DiffSampleData.declaredFileCount
+        declaredAdditions = DiffSampleData.declaredAdditions
+        declaredDeletions = DiffSampleData.declaredDeletions
+        declaredTotalHunkCount = DiffSampleData.totalHunkCount
     }
+
+    /// Live construction — empty until `load(_:)` runs. No canned agent: every path that
+    /// would invent a reply has nowhere to get one.
+    init(
+        git: GitService,
+        replyDelay: DiffReplyDelay = NullDiffReplyDelay()
+    ) {
+        self.replyDelay = replyDelay
+        self.readHunkBaseline = 0
+        self.git = git
+        self.usesSampleData = false
+        self.cannedAgent = nil
+        self.loadState = .loading
+        // Picker defaults only — not agent copy, and not read from DiffSampleData.
+        self.chatModel = .opus5
+        self.reasoningEffort = .high
+        files = []
+        sectionFiles = []
+        viewedPaths = []
+        collapsedPaths = []
+        compareBranch = ""
+        baseBranch = ""
+        repositoryName = ""
+        declaredFileCount = 0
+        declaredAdditions = 0
+        declaredDeletions = 0
+        declaredTotalHunkCount = 0
+    }
+
+    // MARK: - Agent availability
+
+    /// Whether any agent answer source exists. Live sessions are `false` until Slice 4.
+    var canUseAgent: Bool { cannedAgent != nil }
+
+    /// The thinking chrome. Absent when there is no agent — the panel must not invent words.
+    var thinkingIndicator: DiffThinkingIndicator? { cannedAgent?.thinkingIndicator }
+
+    /// Selection popover actions all need an agent. If none, the popover must not appear.
+    var canPresentSelectionPopover: Bool { canUseAgent }
+
+    /// General chat (open + composer) needs an agent. Live sessions keep the panel closed.
+    var canOpenChat: Bool { canUseAgent }
 
     // MARK: - Headline
 
-    var compareBranch: String { DiffSampleData.compareBranch }
-    var baseBranch: String { DiffSampleData.baseBranch }
+    // These describe the whole diff. Sample mode keeps the prototype's declared totals;
+    // a live session uses the patch that was just loaded.
+    var fileCountText: String {
+        declaredFileCount == 1 ? "1 file" : "\(declaredFileCount) files"
+    }
 
-    // These describe the whole diff, not the sample in `files`, so the top bar agrees
-    // with the count the Welcome screen promised.
-    var fileCountText: String { "\(DiffSampleData.declaredFileCount) files" }
-    var additionsText: String { "+\(DiffSampleData.declaredAdditions)" }
-    var deletionsText: String { "\(DiffFormat.minusSign)\(DiffSampleData.declaredDeletions)" }
+    var additionsText: String { "+\(declaredAdditions)" }
+    var deletionsText: String { "\(DiffFormat.minusSign)\(declaredDeletions)" }
+
+    // MARK: - Session load
+
+    /// Starts (or restarts) loading the patch for `session`. Sample models ignore this —
+    /// they already have something to draw, and tests / previews depend on that.
+    func load(_ session: DiffSession) {
+        guard !usesSampleData, let git else { return }
+
+        pendingLoad?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+
+        compareBranch = session.compare.displayName
+        baseBranch = session.base.displayName
+        repositoryName = session.repository.displayName
+        files = []
+        sectionFiles = []
+        viewedPaths = []
+        collapsedPaths = []
+        readHunkIDs = []
+        selection = nil
+        closedDirectories = []
+        declaredFileCount = 0
+        declaredAdditions = 0
+        declaredDeletions = 0
+        declaredTotalHunkCount = 0
+        loadState = .loading
+
+        pendingLoad = Task { [git] in
+            do {
+                let patch = try await git.loadPatch(
+                    in: session.repository,
+                    base: session.base,
+                    compare: session.compare
+                )
+                guard !Task.isCancelled, generation == loadGeneration else { return }
+                apply(patch: patch)
+            } catch is CancellationError {
+                // Replaced or abandoned — leave state to the newer task / returnToWelcome.
+            } catch {
+                guard !Task.isCancelled, generation == loadGeneration else { return }
+                loadState = .failed(message: Self.presentableMessage(for: error))
+            }
+        }
+    }
+
+    private func apply(patch: Patch) {
+        let adapted = PatchAdapter.toDiffFiles(patch)
+        files = adapted
+        sectionFiles = adapted.filter { !$0.hunks.isEmpty }
+        declaredFileCount = adapted.count
+        declaredAdditions = adapted.reduce(0) { $0 + $1.additions }
+        declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
+        declaredTotalHunkCount = adapted.reduce(0) { $0 + $1.hunks.count }
+        loadState = .loaded
+    }
+
+    private static func presentableMessage(for error: Error) -> String {
+        if let gitError = error as? GitError {
+            return gitError.errorDescription ?? String(describing: gitError)
+        }
+        if let patchError = error as? PatchError {
+            return patchError.errorDescription ?? String(describing: patchError)
+        }
+        return error.localizedDescription
+    }
 
     // MARK: - Sidebar
 
@@ -188,7 +372,7 @@ final class DiffModel {
         readHunkBaseline + sectionHunks.filter { isRead($0) }.count
     }
 
-    var totalHunkCount: Int { DiffSampleData.totalHunkCount }
+    var totalHunkCount: Int { declaredTotalHunkCount }
 
     var progressText: String {
         "\(readHunkCount) of \(totalHunkCount) hunks read"
@@ -236,14 +420,34 @@ final class DiffModel {
     }
 
     /// The panel with no hunk behind it: the agent introduces itself.
+    /// No-ops when there is no agent — absence is absence.
     func openChat() {
+        guard let agent = cannedAgent else { return }
         if thread == nil {
             thread = DiffChatThread(
-                messages: [message(role: .agent, text: DiffSampleData.openingAgentMessage)]
+                messages: [message(role: .agent, text: agent.openingMessage)]
             )
         }
         isChatOpen = true
     }
+
+    /// Whether the file header's Explain control has an agent answer to show.
+    /// A file with no hunk opens the general thread — only when an agent exists.
+    func canExplainFile(_ file: DiffFile) -> Bool {
+        guard let hunk = file.hunks.first else { return canUseAgent }
+        return hunk.explanation != nil
+    }
+
+    /// Whether the hunk's Explain / chat actions have an agent answer to show.
+    func canExplain(_ hunk: DiffHunk) -> Bool {
+        hunk.explanation != nil
+    }
+
+    /// Whether explaining the current selection can produce an agent answer.
+    var canExplainSelection: Bool { canUseAgent && selection != nil }
+
+    /// Whether asking about the current selection can produce an agent answer.
+    var canAskAboutSelection: Bool { canUseAgent && selection != nil }
 
     /// The file header's chat button. A file with no hunk in the viewer has nothing
     /// specific to explain, so it opens the general thread.
@@ -256,7 +460,8 @@ final class DiffModel {
     }
 
     func explain(_ hunk: DiffHunk) {
-        startThread(from: hunk, answering: hunk.explanation)
+        guard let explanation = hunk.explanation else { return }
+        startThread(from: hunk, answering: explanation)
     }
 
     /// The marker on a hunk that carries an analysis note.
@@ -266,8 +471,8 @@ final class DiffModel {
     }
 
     func explainSelection() {
-        guard let selection else { return }
-        let reply = DiffSampleData.explainSelectionReply(lineCountLabel: selection.lineCountLabel)
+        guard let agent = cannedAgent, let selection else { return }
+        let reply = agent.explainSelectionReply(lineCountLabel: selection.lineCountLabel)
         self.selection = nil
         openThreadIfNeeded()
         think(reply: reply, location: selection.location, hunkID: nil)
@@ -276,7 +481,7 @@ final class DiffModel {
     /// The question typed into the selection popover. An empty one means the reader
     /// pressed send with nothing to add.
     func askAboutSelection(_ question: String) {
-        guard let selection else { return }
+        guard let agent = cannedAgent, let selection else { return }
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             explainSelection()
@@ -287,33 +492,35 @@ final class DiffModel {
         openThreadIfNeeded()
         append(message(role: .user, text: trimmed, location: location))
         think(
-            reply: DiffSampleData.selectionQuestionReply(location: location, question: trimmed),
+            reply: agent.selectionQuestionReply(location: location, question: trimmed),
             location: nil,
             hunkID: nil
         )
     }
 
-    /// The composer at the bottom of the panel.
+    /// The composer at the bottom of the panel. No-ops without an agent.
     func send(_ text: String) {
+        guard let agent = cannedAgent else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if thread == nil {
-            thread = DiffChatThread(location: DiffSampleData.threadLocation)
+            thread = DiffChatThread(location: "\(compareBranch) → \(baseBranch)")
         }
         isChatOpen = true
         append(message(role: .user, text: trimmed))
-        think(reply: nextReply(), location: nil, hunkID: nil)
+        guard let reply = nextReply(fallback: agent.fallbackReply) else { return }
+        think(reply: reply, location: nil, hunkID: nil)
     }
 
     /// The hunk the thread started from answers once; after that the agent has nothing
-    /// canned left to say.
-    private func nextReply() -> String {
+    /// canned left to say. `nil` when the hunk's reply is absent — do not invent one.
+    private func nextReply(fallback: String) -> String? {
         guard
             let hunkID = thread?.hunkID,
             !usedHunkReplies.contains(hunkID),
             let hunk = hunk(withID: hunkID)
         else {
-            return DiffSampleData.fallbackReply
+            return fallback
         }
         usedHunkReplies.insert(hunkID)
         return hunk.reply
@@ -375,18 +582,41 @@ final class DiffModel {
     // MARK: - Leaving
 
     /// Reading is about one diff. Going back to Welcome ends it, so nothing is carried
-    /// into the next one.
+    /// into the next one. Cancels an in-flight patch load the same way Welcome cancels
+    /// its git tasks.
     func returnToWelcome() {
+        pendingLoad?.cancel()
+        pendingLoad = nil
+        loadGeneration += 1
+
         pendingReply?.cancel()
         pendingReply = nil
-        viewedPaths = DiffSampleData.defaultViewedPaths
-        collapsedPaths = DiffSampleData.defaultViewedPaths
+
+        if usesSampleData {
+            viewedPaths = DiffSampleData.defaultViewedPaths
+            collapsedPaths = DiffSampleData.defaultViewedPaths
+        } else {
+            files = []
+            sectionFiles = []
+            viewedPaths = []
+            collapsedPaths = []
+            compareBranch = ""
+            baseBranch = ""
+            repositoryName = ""
+            declaredFileCount = 0
+            declaredAdditions = 0
+            declaredDeletions = 0
+            declaredTotalHunkCount = 0
+            loadState = .loading
+        }
+
         readHunkIDs = []
         selection = nil
         isChatOpen = false
         thread = nil
         isThinking = false
         usedHunkReplies = []
+        closedDirectories = []
     }
 
     // MARK: - Lookup

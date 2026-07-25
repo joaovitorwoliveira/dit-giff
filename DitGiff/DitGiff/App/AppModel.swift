@@ -25,8 +25,7 @@ final class AppModel {
     /// those away every time. Slice 6's "where I left off" wants the same object anyway.
     let diffModel: DiffModel
 
-    /// Set when the reader opens the diff. Slice 3 will drive the real diff from this;
-    /// the diff screen still draws sample data until then.
+    /// Set when the reader opens the diff. Drives the real patch load on `DiffModel`.
     private(set) var activeDiffSession: DiffSession?
 
     init(welcomeModel: WelcomeModel, diffModel: DiffModel) {
@@ -50,19 +49,21 @@ final class AppModel {
                 recentStore: store,
                 directoryPicker: SystemDirectoryPicker()
             ),
-            diffModel: DiffModel()
+            diffModel: DiffModel(git: git)
         )
     }
 
     func openDiff(_ session: DiffSession) {
         activeDiffSession = session
         route = .diff
+        diffModel.load(session)
     }
 
     /// Leaving the diff ends the reading session. Routing and resetting are one call so
     /// no screen can navigate away and leave the last read behind.
     func returnToWelcome() {
         diffModel.returnToWelcome()
+        activeDiffSession = nil
         route = .welcome
     }
 

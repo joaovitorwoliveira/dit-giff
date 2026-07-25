@@ -71,10 +71,19 @@ nonisolated struct DiffHunk: Identifiable, Equatable, Sendable {
     let location: String
     /// What an attentive reviewer would notice here. Absent when there is nothing to say.
     let note: String?
-    let explanation: String
+    /// Agent explanation for this hunk. `nil` until Slice 4 — absence is not an empty string.
+    let explanation: String?
     /// The canned answer to the first follow-up question in this hunk's thread.
-    let reply: String
+    /// `nil` when there is no agent reply yet.
+    let reply: String?
     let lines: [DiffLine]
+}
+
+/// Whether the diff screen has something real to draw, is still fetching it, or failed.
+nonisolated enum DiffLoadState: Equatable, Sendable {
+    case loading
+    case loaded
+    case failed(message: String)
 }
 
 nonisolated struct DiffFile: Identifiable, Equatable, Sendable {

@@ -299,10 +299,48 @@ struct DiffModelTests {
 
     // MARK: - Chat
 
+    @Test func aHunkWithoutAnExplanationDoesNotOpenChatAndKeepsTheActionDisabled() {
+        let model = makeModel()
+        let bare = DiffHunk(
+            id: "bare",
+            filePath: "Sources/Bare.swift",
+            header: "@@ -1 +1 @@",
+            location: "Bare.swift:1",
+            note: nil,
+            explanation: nil,
+            reply: nil,
+            lines: [
+                DiffLine(
+                    oldNumber: 1,
+                    newNumber: 1,
+                    kind: .context,
+                    segments: [DiffLineSegment(text: "x")]
+                )
+            ]
+        )
+
+        #expect(model.canExplain(bare) == false)
+        #expect(model.canExplainFile(DiffFile(
+            path: bare.filePath,
+            status: .modified,
+            additions: 0,
+            deletions: 0,
+            hunks: [bare]
+        )) == false)
+
+        model.explain(bare)
+
+        #expect(model.isChatOpen == false)
+        #expect(model.thread == nil)
+        #expect(model.pendingReply == nil)
+        #expect(model.isThinking == false)
+    }
+
     @Test func explainingAHunkThinksThenAnswersWithItsLocation() async throws {
         let model = makeModel()
         let billingGuard = try hunk("h1", in: model)
 
+        #expect(model.canExplain(billingGuard))
         model.explain(billingGuard)
 
         #expect(model.isChatOpen)
@@ -524,8 +562,8 @@ struct DiffModelTests {
 
     // MARK: - Thinking indicator
 
-    @Test func theThinkingIndicatorCyclesGlyphsAndWords() {
-        let indicator = makeModel().thinkingIndicator
+    @Test func theThinkingIndicatorCyclesGlyphsAndWords() throws {
+        let indicator = try #require(makeModel().thinkingIndicator)
 
         #expect(indicator.glyph(step: 0) == "⠋")
         #expect(indicator.glyph(step: 1) == "⠙")

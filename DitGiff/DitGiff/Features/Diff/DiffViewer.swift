@@ -4,6 +4,7 @@ import SwiftUI
 /// A drag across lines opens the selection popover; a tap elsewhere clears it.
 struct DiffViewer: View {
     @Environment(\.dsPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let model: DiffModel
     /// Set while a drag is choosing lines, so the viewer's "tap outside" clear does not
@@ -11,23 +12,48 @@ struct DiffViewer: View {
     @State private var isSelectingLines = false
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                ForEach(model.sectionFiles) { file in
-                    Section {
-                        DiffFileBody(
-                            file: file,
-                            model: model,
-                            isSelectingLines: $isSelectingLines
-                        )
-                    } header: {
-                        DiffFileStickyHeader(file: file, model: model)
-                            .dsPadding(.top, .s16)
+        // Vertical only: long lines wrap inside the viewport. With no horizontal axis,
+        // `maxWidth: .infinity` resolves against the reader column again — cards, headers
+        // and line fills share one width.
+        //
+        // Sidebar jumps use ScrollViewReader → scrollTo(headerID, anchor: .top).
+        // The id lives on the sticky header (one per section file). LazyVStack can
+        // resolve that id without materialising every code line between here and there.
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(model.sectionFiles) { file in
+                        Section {
+                            DiffFileBody(
+                                file: file,
+                                model: model,
+                                isSelectingLines: $isSelectingLines
+                            )
+                        } header: {
+                            DiffFileStickyHeader(file: file, model: model)
+                                .dsPadding(.top, .s16)
+                                .id(
+                                    DiffFileNavigationResolver.scrollAnchorID(
+                                        filePath: file.path
+                                    )
+                                )
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsPadding(.horizontal, .s24)
+                .dsPadding(.bottom, .s48)
             }
-            .dsPadding(.horizontal, .s24)
-            .dsPadding(.bottom, .s48)
+            .onChange(of: model.readerScrollRequest) { _, request in
+                guard let request else { return }
+                let anchorID = DiffFileNavigationResolver.scrollAnchorID(
+                    filePath: request.path
+                )
+                withAnimation(DSMotion.jump.animation(reduceMotion: reduceMotion)) {
+                    scrollProxy.scrollTo(anchorID, anchor: .top)
+                }
+                model.clearReaderScrollRequest()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dsSurface(palette.surface0)
@@ -70,6 +96,8 @@ private enum DiffViewerMetric {
     static let newLineNumberWidth: CGFloat = 28
     static let signWidth: CGFloat = 16
     static let codeSize: CGFloat = 13
+    /// Single-line row height — also the fallback for selection hit-testing before a
+    /// wrapped row has reported its measured height.
     static let codeLineHeight: CGFloat = 20.15
 
     /// The `dg-sel-line` mark: a leading rule on every selected row.
@@ -133,12 +161,14 @@ private struct DiffFileStickyHeader: View {
     }
 
     private var pathLabel: some View {
+        // Directory yields first and truncates at the *head* so the file name — the
+        // identity of the row — stays whole. Never truncate the name with ellipsis.
         DSHStack(alignment: .firstTextBaseline, spacing: nil) {
             Text(file.directory)
                 .font(DSTextStyle.body.font(fixedSize: DiffViewerMetric.directorySize))
                 .foregroundStyle(palette.textTertiary.color)
                 .lineLimit(1)
-                .truncationMode(.tail)
+                .truncationMode(.head)
                 .layoutPriority(-1)
             Text(file.name)
                 .font(DSTextStyle.panelTitle.font(fixedSize: DiffViewerMetric.fileNameSize))
@@ -163,7 +193,6 @@ private struct DiffFileStickyHeader: View {
 
 private struct DiffExplainFileButton: View {
     @Environment(\.dsPalette) private var palette
-    @State private var isHovering = false
 
     let isEnabled: Bool
     let action: () -> Void
@@ -171,32 +200,22 @@ private struct DiffExplainFileButton: View {
     var body: some View {
         Button(action: action) {
             DiffExplainFileIcon()
-                .foregroundStyle(
-                    isHovering && isEnabled ? palette.textPrimary.color : palette.textTertiary.color
-                )
+                .foregroundStyle(palette.textTertiary.color)
                 .padding(DiffViewerMetric.iconButtonPadding)
-                .background {
-                    RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                        .fill(isHovering && isEnabled ? palette.surface3.color : Color.clear)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
-        .onHover { isHovering = $0 }
         .accessibilityLabel("Explain this file")
     }
 }
 
 private struct DiffViewedButton: View {
     @Environment(\.dsPalette) private var palette
-    @State private var isHovering = false
 
     let isViewed: Bool
     let action: () -> Void
-
-    private var showsFilledChrome: Bool { isViewed || isHovering }
 
     var body: some View {
         Button(action: action) {
@@ -209,20 +228,20 @@ private struct DiffViewedButton: View {
                 )
                 Text("Viewed")
                     .font(DSTextStyle.label.font(fixedSize: DiffViewerMetric.viewedLabelSize))
+                    .lineLimit(1)
             }
             .foregroundStyle(
-                showsFilledChrome ? palette.textPrimary.color : palette.textTertiary.color
+                isViewed ? palette.textPrimary.color : palette.textTertiary.color
             )
             .padding(.vertical, DiffViewerMetric.viewedVerticalPadding)
             .dsPadding(.horizontal, .s8)
             .background {
                 RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                    .fill(showsFilledChrome ? palette.surface3.color : Color.clear)
+                    .fill(isViewed ? palette.surface3.color : Color.clear)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
         .accessibilityLabel(isViewed ? "Mark as not viewed" : "Mark as viewed")
         .accessibilityAddTraits(isViewed ? .isSelected : [])
     }
@@ -238,22 +257,32 @@ private struct DiffFileBody: View {
     @Binding var isSelectingLines: Bool
 
     private var isCollapsed: Bool { model.isCollapsed(file) }
+    private var fileLineCount: Int { DiffCodeMetrics.lineCount(in: file) }
+    private var selectedHunkID: String? { model.selection?.hunkID }
+    private var selectedRows: ClosedRange<Int>? { model.selection?.rows }
 
     var body: some View {
-        DSVStack(alignment: .leading, spacing: nil) {
+        Group {
             if !isCollapsed {
-                ForEach(file.hunks) { hunk in
-                    DiffHunkBlock(
-                        hunk: hunk,
-                        model: model,
-                        isSelectingLines: $isSelectingLines
-                    )
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(file.hunks) { hunk in
+                        DiffHunkBlock(
+                            hunk: hunk,
+                            model: model,
+                            selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
+                            showsSelectionPopover: selectedHunkID == hunk.id
+                                && model.canPresentSelectionPopover,
+                            isSelectingLines: $isSelectingLines
+                        )
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(
-            DSMotion.collapse.animation(reduceMotion: reduceMotion),
+            DiffCollapseAnimation.shouldAnimate(lineCount: fileLineCount)
+                ? DSMotion.collapse.animation(reduceMotion: reduceMotion)
+                : nil,
             value: isCollapsed
         )
     }
@@ -264,23 +293,29 @@ private struct DiffFileBody: View {
 private struct DiffHunkBlock: View {
     @Environment(\.dsPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isHovering = false
 
     let hunk: DiffHunk
     let model: DiffModel
+    /// Rows selected in this hunk, or `nil` when the selection is elsewhere.
+    let selectedRows: ClosedRange<Int>?
+    let showsSelectionPopover: Bool
     @Binding var isSelectingLines: Bool
 
     private var isRead: Bool { model.isRead(hunk) }
-    private var isSelectedHunk: Bool { model.selection?.hunkID == hunk.id }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 0) {
-                DiffHunkHeader(hunk: hunk, model: model, actionsVisible: isHovering)
+                DiffHunkHeader(hunk: hunk, model: model)
+                // Hover lives on the header only (inside DiffHunkHeader). Scrolling the
+                // mouse across code lines must not thrash hunk chrome.
                 DiffCodeGrid(
                     hunk: hunk,
-                    model: model,
-                    isSelectingLines: $isSelectingLines
+                    selectedRows: selectedRows,
+                    isSelectingLines: $isSelectingLines,
+                    selectLines: { from, through in
+                        model.selectLines(inHunkWithID: hunk.id, from: from, through: through)
+                    }
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -297,18 +332,15 @@ private struct DiffHunkBlock: View {
             DSMotion.read.animation(reduceMotion: reduceMotion),
             value: isRead
         )
-        // Anchored above the hunk, not above the selected rows: precise line-relative
-        // placement fights the nested scroll views, and simple+correct wins here.
         .overlay(alignment: .top) {
             // No agent ⇒ every popover action is dead. Prefer no popover over a corpse.
-            if isSelectedHunk, model.canPresentSelectionPopover {
+            if showsSelectionPopover {
                 DiffSelectionPopover(model: model)
                     .alignmentGuide(.top) { $0[.bottom] + DSSpace.s8.points }
                     .zIndex(1)
             }
         }
         .dsPadding(.top, .s8)
-        .onHover { isHovering = $0 }
     }
 }
 
@@ -316,7 +348,6 @@ private struct DiffHunkBlock: View {
 /// note exists, not a badge that ranks the change.
 private struct DiffHunkNoteMarker: View {
     @Environment(\.dsPalette) private var palette
-    @State private var isHovering = false
 
     let action: () -> Void
 
@@ -329,9 +360,7 @@ private struct DiffHunkNoteMarker: View {
                 topTrailingRadius: DiffViewerMetric.noteMarkerRadius,
                 style: .continuous
             )
-            .fill(
-                isHovering ? palette.textSecondary.color : palette.textTertiary.color
-            )
+            .fill(palette.textTertiary.color)
             .frame(
                 width: DiffViewerMetric.noteMarkerWidth,
                 height: DiffViewerMetric.noteMarkerHeight
@@ -340,17 +369,16 @@ private struct DiffHunkNoteMarker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
         .accessibilityLabel("Open analysis note")
     }
 }
 
 private struct DiffHunkHeader: View {
     @Environment(\.dsPalette) private var palette
+    @State private var isHovering = false
 
     let hunk: DiffHunk
     let model: DiffModel
-    let actionsVisible: Bool
 
     var body: some View {
         DSHStack(spacing: .s8) {
@@ -358,20 +386,22 @@ private struct DiffHunkHeader: View {
                 .font(DSTextStyle.code.font(fixedSize: DiffViewerMetric.hunkHeaderSize))
                 .foregroundStyle(palette.textTertiary.color)
                 .lineLimit(1)
-                .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             DiffHunkActions(hunk: hunk, model: model)
-                .opacity(actionsVisible ? 1 : 0)
-                .allowsHitTesting(actionsVisible)
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
         }
         .dsPadding(.leading, .s12)
         .dsPadding(.trailing, .s8)
         .frame(height: DiffViewerMetric.hunkHeaderHeight)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(palette.borderSubtle.color)
                 .frame(height: DiffViewerMetric.hairline)
         }
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
     }
 }
 
@@ -409,7 +439,6 @@ private struct DiffHunkActions: View {
 
 private struct DiffHunkIconButton<Label: View>: View {
     @Environment(\.dsPalette) private var palette
-    @State private var isHovering = false
 
     let accessibilityLabel: String
     var isEnabled: Bool = true
@@ -419,27 +448,19 @@ private struct DiffHunkIconButton<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label()
-                .foregroundStyle(
-                    isHovering && isEnabled ? palette.textPrimary.color : palette.textTertiary.color
-                )
+                .foregroundStyle(palette.textTertiary.color)
                 .padding(DiffViewerMetric.hunkActionPadding)
-                .background {
-                    RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                        .fill(isHovering && isEnabled ? palette.surface3.color : Color.clear)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
-        .onHover { isHovering = $0 }
         .accessibilityLabel(accessibilityLabel)
     }
 }
 
 private struct DiffHunkReadButton: View {
     @Environment(\.dsPalette) private var palette
-    @State private var isHovering = false
 
     let isRead: Bool
     let action: () -> Void
@@ -452,17 +473,16 @@ private struct DiffHunkReadButton: View {
                 checkColor: palette.surface1
             )
             .foregroundStyle(
-                isHovering || isRead ? palette.textPrimary.color : palette.textTertiary.color
+                isRead ? palette.textPrimary.color : palette.textTertiary.color
             )
             .padding(DiffViewerMetric.hunkActionPadding)
             .background {
                 RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
-                    .fill(isHovering || isRead ? palette.surface3.color : Color.clear)
+                    .fill(isRead ? palette.surface3.color : Color.clear)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
         .accessibilityLabel(isRead ? "Mark hunk as unread" : "Mark hunk as read")
         .accessibilityAddTraits(isRead ? .isSelected : [])
     }
@@ -470,70 +490,83 @@ private struct DiffHunkReadButton: View {
 
 // MARK: - Code grid
 
-/// The code column is monospaced, so the widest row is simply the one with the most
-/// characters and its width can be measured once. Measuring is what keeps the layout
-/// system out of a negotiation it cannot settle.
-private enum DiffCodeWidth {
-    /// The advance of one character, taken from the face the diff actually renders in so
-    /// the measurement matches what is drawn.
-    private static let advance: CGFloat = {
-        let size = DiffViewerMetric.codeSize
-        let font = DSCodeFont.isAvailable
-            ? NSFont(name: DSCodeFont.faceName(for: .regular), size: size)
-            : nil
-        let resolved = font ?? .monospacedSystemFont(ofSize: size, weight: .regular)
-        return "0".size(withAttributes: [.font: resolved]).width
-    }()
+/// Vertical spans of materialised code rows, keyed by row index, in the hunk grid's
+/// named coordinate space. Lazy holes are absent; hit-testing steps from neighbours.
+private struct DiffCodeRowFramesKey: PreferenceKey {
+    static let defaultValue: [Int: DiffCodeRowFrame] = [:]
 
-    static func widest(of lines: [DiffLine]) -> CGFloat {
-        let characters = lines.map(\.text.count).max() ?? 0
-        return CGFloat(characters) * advance
+    static func reduce(
+        value: inout [Int: DiffCodeRowFrame],
+        nextValue: () -> [Int: DiffCodeRowFrame]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
+}
+
+private enum DiffCodeGridSpace {
+    static let name = "diff.codeGrid"
 }
 
 private struct DiffCodeGrid: View {
     let hunk: DiffHunk
-    let model: DiffModel
+    let selectedRows: ClosedRange<Int>?
     @Binding var isSelectingLines: Bool
+    let selectLines: (_ from: Int, _ through: Int) -> Void
 
     @State private var dragOrigin: Int?
+    @State private var measuredFrames: [Int: DiffCodeRowFrame] = [:]
 
-    /// Every row is given the same measured width so the add and delete fills line up on
-    /// the right. It is measured rather than negotiated: asking `fixedSize` for an ideal
-    /// width while the rows inside ask for `maxWidth: .infinity` is a contradiction, and
-    /// SwiftUI resolves it by re-sizing forever — it hung the window when a maximised
-    /// screen collapsed a file.
-    private var codeWidth: CGFloat {
-        DiffCodeWidth.widest(of: hunk.lines)
+    /// Built once when the grid value is created — not on every `body` read.
+    private let rowIDs: [DiffLineIdentity.RowID]
+
+    init(
+        hunk: DiffHunk,
+        selectedRows: ClosedRange<Int>?,
+        isSelectingLines: Binding<Bool>,
+        selectLines: @escaping (_ from: Int, _ through: Int) -> Void
+    ) {
+        self.hunk = hunk
+        self.selectedRows = selectedRows
+        self._isSelectingLines = isSelectingLines
+        self.selectLines = selectLines
+        self.rowIDs = DiffLineIdentity.rowIDs(hunkID: hunk.id, lineCount: hunk.lines.count)
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(hunk.lines.enumerated()), id: \.offset) { index, line in
-                    DiffCodeLineRow(
-                        line: line,
-                        isSelected: isSelected(index),
-                        codeWidth: codeWidth
-                    )
-                }
+        // Lazy at the line level: materialising every row of a large hunk is what
+        // froze scrolling when only the file stack was lazy.
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(rowIDs) { rowID in
+                DiffCodeLineRow(
+                    line: hunk.lines[rowID.rowIndex],
+                    rowIndex: rowID.rowIndex,
+                    isSelected: selectedRows?.contains(rowID.rowIndex) ?? false
+                )
             }
-            .contentShape(Rectangle())
-            .highPriorityGesture(selectionDrag)
-            .dsPadding(.vertical, .s4)
         }
+        .coordinateSpace(name: DiffCodeGridSpace.name)
+        .onPreferenceChange(DiffCodeRowFramesKey.self) { measuredFrames = $0 }
+        .contentShape(Rectangle())
+        .highPriorityGesture(selectionDrag)
+        .dsPadding(.vertical, .s4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var selectionDrag: some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(DiffCodeGridSpace.name))
             .onChanged { value in
                 isSelectingLines = true
-                let index = Int(floor(value.location.y / DiffViewerMetric.codeLineHeight))
+                let index = DiffCodeSelectionHitTesting.rowIndex(
+                    atY: Double(value.location.y),
+                    frames: measuredFrames,
+                    lineCount: hunk.lines.count,
+                    fallbackHeight: Double(DiffViewerMetric.codeLineHeight)
+                )
                 if dragOrigin == nil {
                     dragOrigin = index
                 }
                 guard let origin = dragOrigin else { return }
-                model.selectLines(inHunkWithID: hunk.id, from: origin, through: index)
+                selectLines(origin, index)
             }
             .onEnded { _ in
                 dragOrigin = nil
@@ -543,37 +576,37 @@ private struct DiffCodeGrid: View {
                 }
             }
     }
-
-    private func isSelected(_ index: Int) -> Bool {
-        guard let selection = model.selection, selection.hunkID == hunk.id else {
-            return false
-        }
-        return selection.rows.contains(index)
-    }
 }
 
 private struct DiffCodeLineRow: View {
     @Environment(\.dsPalette) private var palette
 
     let line: DiffLine
+    let rowIndex: Int
     let isSelected: Bool
-    let codeWidth: CGFloat
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
+        // Top-aligned gutter: when the code wraps, numbers and the sign stay on the
+        // first visual line only; continuation rows keep an empty gutter of the same
+        // width so columns stay aligned.
+        HStack(alignment: .top, spacing: 0) {
             lineNumber(line.oldNumber, width: DiffViewerMetric.oldLineNumberWidth)
             lineNumber(line.newNumber, width: DiffViewerMetric.newLineNumberWidth)
             Text(line.kind.sign)
-                .frame(width: DiffViewerMetric.signWidth, alignment: .center)
+                .frame(
+                    width: DiffViewerMetric.signWidth,
+                    height: DiffViewerMetric.codeLineHeight,
+                    alignment: .center
+                )
                 .foregroundStyle(signColor.color)
-            codeSegments
-                // `minWidth`, not `width`: if the measurement ever falls a hair short of
-                // what the text needs, the longest row grows instead of clipping.
-                .frame(minWidth: codeWidth, alignment: .leading)
+            Text(attributedCode)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .dsPadding(.trailing, .s24)
+                .multilineTextAlignment(.leading)
         }
         .font(DSTextStyle.code.font(fixedSize: DiffViewerMetric.codeSize))
-        .frame(height: DiffViewerMetric.codeLineHeight, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: DiffViewerMetric.codeLineHeight, alignment: .top)
         .background(rowBackground?.color ?? Color.clear)
         .overlay(alignment: .leading) {
             if isSelected {
@@ -582,27 +615,49 @@ private struct DiffCodeLineRow: View {
                     .frame(width: DiffViewerMetric.selectionBarWidth)
             }
         }
+        .background {
+            GeometryReader { geo in
+                let frame = geo.frame(in: .named(DiffCodeGridSpace.name))
+                Color.clear.preference(
+                    key: DiffCodeRowFramesKey.self,
+                    value: [
+                        rowIndex: DiffCodeRowFrame(
+                            minY: Double(frame.minY),
+                            height: Double(frame.height)
+                        ),
+                    ]
+                )
+            }
+        }
     }
 
     private func lineNumber(_ number: Int?, width: CGFloat) -> some View {
         Text(number.map(String.init) ?? "")
             .dsText(.lineNumber)
             .foregroundStyle(palette.textTertiary.color)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .lineLimit(1)
+            .frame(
+                width: width,
+                height: DiffViewerMetric.codeLineHeight,
+                alignment: .trailing
+            )
             .dsPadding(.trailing, .s8)
-            .frame(width: width, alignment: .trailing)
     }
 
-    private var codeSegments: some View {
-        // One Text per segment so a word highlight can paint only its own run.
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
-            ForEach(Array(line.segments.enumerated()), id: \.offset) { _, segment in
-                Text(segment.text)
-                    .foregroundStyle(codeColor.color)
-                    .background(segmentBackground(segment)?.color ?? Color.clear)
+    /// One `Text` for the whole line. Highlighted segments become attributed runs with
+    /// the same foreground and word-fill colours the per-segment `Text`s used before.
+    private var attributedCode: AttributedString {
+        var result = AttributedString()
+        let foreground = codeColor.color
+        for segment in line.segments {
+            var run = AttributedString(segment.text)
+            run.foregroundColor = foreground
+            if let fill = segmentBackground(segment) {
+                run.backgroundColor = fill.color
             }
+            result += run
         }
-        .lineLimit(1)
+        return result
     }
 
     private var rowBackground: DSColorValue? {

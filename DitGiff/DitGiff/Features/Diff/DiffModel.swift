@@ -82,18 +82,45 @@ final class DiffModel {
 
     // MARK: - Sidebar
 
-    var filter = ""
+    var filter = "" {
+        didSet {
+            guard filter != oldValue else { return }
+            refreshFilterCaches()
+        }
+    }
     private(set) var isSidebarOpen = true
+    /// Cached from `files` + `filter`. Invalidated only when either changes.
+    private(set) var filteredFiles: [DiffFile] = []
+    /// Cached tree of `filteredFiles`. Invalidated with the filter caches.
+    private(set) var fileTree: [DiffTreeNode] = []
+    /// Test seam: how often the filter / tree caches were rebuilt.
+    private(set) var filterCacheRefreshCount = 0
 
     // MARK: - Reading state
 
     private(set) var viewedPaths: Set<String>
     private(set) var collapsedPaths: Set<String>
     private(set) var readHunkIDs: Set<String> = []
+    /// Cached progress. Invalidated when viewed / read / section files / baseline change.
+    private(set) var readHunkCount: Int = 0
+    /// Test seam: how often progress was recomputed.
+    private(set) var readProgressRefreshCount = 0
+    /// Directory path → viewed aggregate over all descendants. Rebuilt with viewed / tree.
+    private(set) var directoryViewedStates: [String: DiffAggregateState] = [:]
+    /// Test seam: how often directory viewed aggregates were recomputed.
+    private(set) var directoryViewedStateRefreshCount = 0
 
     // MARK: - Selection
 
     private(set) var selection: DiffSelection?
+
+    // MARK: - Sidebar → reader navigation
+
+    /// The file last chosen in the change map. Highlight only — not the same as viewed.
+    private(set) var focusedFilePath: String?
+    /// Consumed by the viewer to animate a scroll. `nil` when idle.
+    private(set) var readerScrollRequest: DiffReaderScrollRequest?
+    private var readerScrollNonce: UInt = 0
 
     // MARK: - Chat
 
@@ -151,6 +178,8 @@ final class DiffModel {
         declaredAdditions = DiffSampleData.declaredAdditions
         declaredDeletions = DiffSampleData.declaredDeletions
         declaredTotalHunkCount = DiffSampleData.totalHunkCount
+        refreshFilterCaches()
+        refreshReadProgress()
     }
 
     /// Live construction — empty until `load(_:)` runs. No canned agent: every path that
@@ -179,6 +208,8 @@ final class DiffModel {
         declaredAdditions = 0
         declaredDeletions = 0
         declaredTotalHunkCount = 0
+        refreshFilterCaches()
+        refreshReadProgress()
     }
 
     // MARK: - Agent availability
@@ -226,12 +257,16 @@ final class DiffModel {
         collapsedPaths = []
         readHunkIDs = []
         selection = nil
+        focusedFilePath = nil
+        readerScrollRequest = nil
         closedDirectories = []
         declaredFileCount = 0
         declaredAdditions = 0
         declaredDeletions = 0
         declaredTotalHunkCount = 0
         loadState = .loading
+        refreshFilterCaches()
+        refreshReadProgress()
 
         pendingLoad = Task { [git] in
             do {
@@ -260,6 +295,8 @@ final class DiffModel {
         declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
         declaredTotalHunkCount = adapted.reduce(0) { $0 + $1.hunks.count }
         loadState = .loaded
+        refreshFilterCaches()
+        refreshReadProgress()
     }
 
     private static func presentableMessage(for error: Error) -> String {
@@ -284,18 +321,6 @@ final class DiffModel {
 
     var isFiltering: Bool { !normalizedFilter.isEmpty }
 
-    var filteredFiles: [DiffFile] {
-        let needle = normalizedFilter
-        guard !needle.isEmpty else { return files }
-        return files.filter { $0.path.lowercased().contains(needle) }
-    }
-
-    /// Built from the files that matched, so a folder survives exactly as long as one of
-    /// its files does.
-    var fileTree: [DiffTreeNode] {
-        DiffTree.build(files: filteredFiles)
-    }
-
     /// Folders start open, and a filter opens all of them: hiding a match behind a
     /// closed folder would be a lie.
     func isDirectoryOpen(_ path: String) -> Bool {
@@ -308,6 +333,34 @@ final class DiffModel {
             return
         }
         closedDirectories.insert(path)
+    }
+
+    // MARK: - Sidebar → reader navigation
+
+    func isFocusedInSidebar(_ file: DiffFile) -> Bool {
+        focusedFilePath == file.path
+    }
+
+    /// Sidebar file row click. Marks the file current; scrolls the reader when the file
+    /// has hunks. Does not expand a collapsed file — the sticky header is the target.
+    func revealFileInReader(_ file: DiffFile) {
+        focusedFilePath = file.path
+        let sectionPaths = Set(sectionFiles.map(\.path))
+        switch DiffFileNavigationResolver.resolve(
+            filePath: file.path,
+            sectionFilePaths: sectionPaths
+        ) {
+        case let .scrollToHeader(path):
+            readerScrollNonce &+= 1
+            readerScrollRequest = DiffReaderScrollRequest(path: path, nonce: readerScrollNonce)
+        case .unavailableInReader:
+            readerScrollRequest = nil
+        }
+    }
+
+    /// The viewer calls this after consuming a scroll request so the next click can fire.
+    func clearReaderScrollRequest() {
+        readerScrollRequest = nil
     }
 
     // MARK: - Viewed and collapsed
@@ -335,13 +388,94 @@ final class DiffModel {
     }
 
     private func setViewed(_ isViewed: Bool, for file: DiffFile) {
-        guard isViewed else {
-            viewedPaths.remove(file.path)
-            collapsedPaths.remove(file.path)
-            return
+        var viewed = viewedPaths
+        var collapsed = collapsedPaths
+        if isViewed {
+            viewed.insert(file.path)
+            collapsed.insert(file.path)
+        } else {
+            viewed.remove(file.path)
+            collapsed.remove(file.path)
         }
-        viewedPaths.insert(file.path)
-        collapsedPaths.insert(file.path)
+        viewedPaths = viewed
+        collapsedPaths = collapsed
+        refreshViewedDirectoryStates()
+        refreshReadProgress()
+    }
+
+    // MARK: - Folder aggregates
+
+    func viewedState(for directory: DiffTreeDirectory) -> DiffAggregateState {
+        directoryViewedStates[directory.path] ?? .none
+    }
+
+    func collapsedState(for directory: DiffTreeDirectory) -> DiffAggregateState {
+        aggregateState(for: directory) { collapsedPaths.contains($0.path) }
+    }
+
+    /// Whether a sidebar file row should paint as already read. O(1) set lookup.
+    func isDimmedInSidebar(_ file: DiffFile) -> Bool {
+        viewedPaths.contains(file.path)
+    }
+
+    /// Whether a sidebar folder row should paint as already read. O(1) cache lookup —
+    /// only folders whose every descendant is viewed.
+    func isDimmedInSidebar(_ directory: DiffTreeDirectory) -> Bool {
+        viewedState(for: directory) == .all
+    }
+
+    /// Not-all → mark every descendant viewed (and collapsed). All → clear both marks.
+    /// Mutates the sets once and refreshes derived caches once — never once per file.
+    func toggleViewed(in directory: DiffTreeDirectory) {
+        let files = directory.descendantFiles
+        guard !files.isEmpty else { return }
+        applyViewed(viewedState(for: directory).togglesTowardAll, to: files)
+    }
+
+    /// Not-all → collapse every descendant in the reader. All → expand them all.
+    /// Does not touch viewed marks or the progress cache.
+    func toggleCollapsed(in directory: DiffTreeDirectory) {
+        let files = directory.descendantFiles
+        guard !files.isEmpty else { return }
+        let collapseAll = collapsedState(for: directory).togglesTowardAll
+        var next = collapsedPaths
+        for file in files {
+            if collapseAll {
+                next.insert(file.path)
+            } else {
+                next.remove(file.path)
+            }
+        }
+        collapsedPaths = next
+    }
+
+    private func aggregateState(
+        for directory: DiffTreeDirectory,
+        matching: (DiffFile) -> Bool
+    ) -> DiffAggregateState {
+        let files = directory.descendantFiles
+        let matchingCount = files.reduce(into: 0) { count, file in
+            if matching(file) { count += 1 }
+        }
+        return DiffAggregateState.of(matchingCount: matchingCount, total: files.count)
+    }
+
+    private func applyViewed(_ isViewed: Bool, to files: [DiffFile]) {
+        var viewed = viewedPaths
+        var collapsed = collapsedPaths
+        for file in files {
+            if isViewed {
+                viewed.insert(file.path)
+                collapsed.insert(file.path)
+            } else {
+                viewed.remove(file.path)
+                collapsed.remove(file.path)
+            }
+        }
+        viewedPaths = viewed
+        collapsedPaths = collapsed
+        refreshViewedDirectoryStates()
+        refreshReadProgress()
     }
 
     // MARK: - Read hunks
@@ -357,19 +491,19 @@ final class DiffModel {
     func toggleRead(_ hunk: DiffHunk) {
         guard isRead(hunk) else {
             readHunkIDs.insert(hunk.id)
+            refreshReadProgress()
             return
         }
         readHunkIDs.remove(hunk.id)
-        guard let file = file(atPath: hunk.filePath) else { return }
+        guard let file = file(atPath: hunk.filePath) else {
+            refreshReadProgress()
+            return
+        }
         setViewed(false, for: file)
     }
 
     private var sectionHunks: [DiffHunk] {
         sectionFiles.flatMap(\.hunks)
-    }
-
-    var readHunkCount: Int {
-        readHunkBaseline + sectionHunks.filter { isRead($0) }.count
     }
 
     var totalHunkCount: Int { declaredTotalHunkCount }
@@ -608,15 +742,70 @@ final class DiffModel {
             declaredDeletions = 0
             declaredTotalHunkCount = 0
             loadState = .loading
+            refreshFilterCaches()
         }
 
         readHunkIDs = []
         selection = nil
+        focusedFilePath = nil
+        readerScrollRequest = nil
         isChatOpen = false
         thread = nil
         isThinking = false
         usedHunkReplies = []
         closedDirectories = []
+        refreshViewedDirectoryStates()
+        refreshReadProgress()
+    }
+
+    // MARK: - Caches
+
+    private func refreshFilterCaches() {
+        filterCacheRefreshCount += 1
+        let needle = normalizedFilter
+        if needle.isEmpty {
+            filteredFiles = files
+        } else {
+            filteredFiles = files.filter { $0.path.lowercased().contains(needle) }
+        }
+        fileTree = DiffTree.build(files: filteredFiles)
+        refreshViewedDirectoryStates()
+    }
+
+    /// One bottom-up walk of `fileTree`. Sidebar rows then read O(1) from the map.
+    private func refreshViewedDirectoryStates() {
+        directoryViewedStateRefreshCount += 1
+        var states: [String: DiffAggregateState] = [:]
+
+        @discardableResult
+        func walk(_ nodes: [DiffTreeNode]) -> (matching: Int, total: Int) {
+            var matching = 0
+            var total = 0
+            for node in nodes {
+                switch node {
+                case let .file(file, _):
+                    total += 1
+                    if viewedPaths.contains(file.path) { matching += 1 }
+                case let .directory(directory):
+                    let child = walk(directory.children)
+                    states[directory.path] = DiffAggregateState.of(
+                        matchingCount: child.matching,
+                        total: child.total
+                    )
+                    matching += child.matching
+                    total += child.total
+                }
+            }
+            return (matching, total)
+        }
+
+        _ = walk(fileTree)
+        directoryViewedStates = states
+    }
+
+    private func refreshReadProgress() {
+        readProgressRefreshCount += 1
+        readHunkCount = readHunkBaseline + sectionHunks.filter { isRead($0) }.count
     }
 
     // MARK: - Lookup

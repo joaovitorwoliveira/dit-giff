@@ -5,13 +5,16 @@ import SwiftUI
 struct WelcomeView: View {
     @Environment(\.dsPalette) private var palette
     @State private var model: WelcomeModel
+    private let openDiff: () -> Void
 
-    init() {
+    init(openDiff: @escaping () -> Void) {
         _model = State(initialValue: WelcomeModel())
+        self.openDiff = openDiff
     }
 
-    init(model: WelcomeModel) {
+    init(model: WelcomeModel, openDiff: @escaping () -> Void) {
         _model = State(initialValue: model)
+        self.openDiff = openDiff
     }
 
     // The prototype's card carries a border, a shadow and its own traffic lights because
@@ -23,7 +26,7 @@ struct WelcomeView: View {
             if model.selectedRepository == nil {
                 WelcomeRepositoryPicker(model: model)
             } else {
-                WelcomeReviewSetup(model: model)
+                WelcomeReviewSetup(model: model, openDiff: openDiff)
             }
         }
         .frame(width: WelcomeMetric.contentWidth)
@@ -221,6 +224,7 @@ private struct WelcomeSecondaryButton: View {
 
 private struct WelcomeReviewSetup: View {
     @Bindable var model: WelcomeModel
+    let openDiff: () -> Void
 
     var body: some View {
         DSVStack(alignment: .leading, spacing: .s16) {
@@ -230,7 +234,7 @@ private struct WelcomeReviewSetup: View {
                 }
             }
             WelcomeBranchSection(model: model)
-            WelcomeGoalSection(model: model)
+            WelcomeGoalSection(model: model, openDiff: openDiff)
         }
     }
 }
@@ -363,6 +367,7 @@ private struct WelcomeBranchMenu: View {
 private struct WelcomeGoalSection: View {
     @Environment(\.dsPalette) private var palette
     @Bindable var model: WelcomeModel
+    let openDiff: () -> Void
     @FocusState private var isGoalFocused: Bool
 
     var body: some View {
@@ -377,7 +382,7 @@ private struct WelcomeGoalSection: View {
             // The ring wraps the whole field rather than only the editor: the editor is
             // the top half of one bordered box, and a ring across its middle reads as a bug.
             .dsFocusRing(isGoalFocused, radius: .md)
-            WelcomeFooter(model: model)
+            WelcomeFooter(model: model, openDiff: openDiff)
         }
     }
 
@@ -517,6 +522,7 @@ private struct WelcomeFooter: View {
     @Environment(\.dsPalette) private var palette
 
     let model: WelcomeModel
+    let openDiff: () -> Void
 
     var body: some View {
         DSHStack(spacing: .s12) {
@@ -524,9 +530,9 @@ private struct WelcomeFooter: View {
                 .dsText(.label)
                 .foregroundStyle(palette.textTertiary.color)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            WelcomePrimaryButton(title: "Open diff", isEnabled: model.canOpenDiff) {
-                // The diff screen does not exist yet, so opening it does nothing.
-            }
+            // The diff is the sample diff whatever the branches say: nothing chosen here
+            // reaches it until git does, in slices 2 and 3.
+            WelcomePrimaryButton(title: "Open diff", isEnabled: model.canOpenDiff, action: openDiff)
         }
     }
 }
@@ -568,21 +574,21 @@ private func welcomeModelWithRepositorySelected() -> WelcomeModel {
 }
 
 #Preview("No repository — dark") {
-    WelcomeView()
+    WelcomeView {}
         .preferredColorScheme(.dark)
 }
 
 #Preview("No repository — light") {
-    WelcomeView()
+    WelcomeView {}
         .preferredColorScheme(.light)
 }
 
 #Preview("Repository selected — dark") {
-    WelcomeView(model: welcomeModelWithRepositorySelected())
+    WelcomeView(model: welcomeModelWithRepositorySelected()) {}
         .preferredColorScheme(.dark)
 }
 
 #Preview("Repository selected — light") {
-    WelcomeView(model: welcomeModelWithRepositorySelected())
+    WelcomeView(model: welcomeModelWithRepositorySelected()) {}
         .preferredColorScheme(.light)
 }

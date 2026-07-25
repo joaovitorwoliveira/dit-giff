@@ -9,27 +9,6 @@ A ordem importa: cada um destrava o seguinte.
 
 ---
 
-## Feito
-
-**Fundação.** Design system em Swift (cor, espaço, tipo, motion, JetBrains Mono), a
-costura de processos com fake e adapter, e a tela Welcome como protótipo estático.
-
----
-
-## Slice 1 — A tela de diff, estática
-
-Fecha o design system contra a tela que realmente exercita ele. Ainda sem git e sem IA:
-dados de exemplo, como a Welcome é hoje.
-
-- Barra superior: pílula de branch que volta, contadores, alternador de tema.
-- Sidebar com a árvore de arquivos e o filtro.
-- O leitor de diff: cabeçalho fixo por arquivo, medianiz de números, linhas de adição e
-  remoção, destaque de palavra dentro da linha.
-- Popover de seleção e o painel de chat, ambos em casca.
-
-**Pronto quando** a tela inteira existe e é navegável com dados falsos, e nenhum valor
-solto de cor ou espaçamento sobrou nas views.
-
 ## Slice 2 — Git real: repositório e branches
 
 A Welcome para de mentir. Primeiro contato do app com o disco.
@@ -121,3 +100,12 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
 - Ícone, primeira execução, e o app abrindo fora do Xcode.
 
 **Pronto quando** eu abro pelo Launchpad e não penso no Xcode.
+
+---
+
+## Feito
+
+- **Fundação.** Design system em Swift (cor, espaço, tipo, motion, JetBrains Mono), a
+  costura de processos com fake e adapter, e a tela Welcome como protótipo estático.
+- **Slice 1 — A tela de diff, estática.** Barra, sidebar com árvore e filtro, leitor com
+  hunks e destaque de palavra, popover e chat em casca, tudo com dados de exemplo.

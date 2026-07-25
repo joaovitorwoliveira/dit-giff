@@ -112,6 +112,9 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
   do produto (`textError`, `diffAdd`, `diffDel`) preservados. Clicar num arquivo na árvore
   agora acerta o alvo: o pulo virou uma sequência de uma passada animada e duas corretivas
   depois que o layout assenta.
+- **Organização do código.** `Features/Diff` saiu de 12 arquivos soltos para `Domain/`,
+  `Model/` e `Views/`, sem nenhum arquivo acima de 500 linhas, e os testes passaram a
+  espelhar a estrutura do app. O padrão está no `AGENTS.md`.
 
 ### O que não vale reabrir
 

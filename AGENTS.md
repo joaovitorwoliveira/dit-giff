@@ -25,6 +25,29 @@ Design rules are deliberately not in this file. Take them from the design system
 `DesignSystem/`, which is where the values are enforced; a `DESIGN.md` will hold the
 written rules.
 
+## Code layout
+
+Splitting a file costs nothing here — one module, no imports to update, and the project
+uses file system synchronized groups, so new folders and moved `.swift` files need no
+`.xcodeproj` edit. When a file passes ~400 lines, look for the seam; a `// MARK:` usually
+already marks it. Three rules place what comes out.
+
+**One folder per role inside a feature: `Domain/`, `Model/`, `Views/`.** Domain is pure
+types with no state, Model is the screen's state, Views is what draws. `Views/` groups by
+area when it grows (`Reader/`, `Sidebar/`, `Chat/`, `Icons/`). `Core/` keeps its own split
+by technical layer — `Agent/`, `Diff/`, `Git/`, `Process/`, `Storage/` — with the recurring
+`*Domain.swift` + `*Service.swift` pair inside each.
+
+**A large class splits into `Type+Subject.swift`.** The base file holds the stored
+properties and the init, because Swift does not allow stored properties in an extension;
+every other subject gets its own file wrapping methods in `extension Type { }`. This costs
+`private(set)`: `private` in Swift is file scope, so a property written from a sibling file
+has to become writable module-wide. `DiffModel` pays that price deliberately. Read a
+surviving `private(set)` as the signal that nothing outside the base file writes it.
+
+**Tests mirror the app.** `DitGiffTests/Core/Git/GitServiceTests.swift`. Finding a test is
+looking where the code is.
+
 ## Rules that do not bend
 
 - **Read-only.** The AI never writes to the user's repository.

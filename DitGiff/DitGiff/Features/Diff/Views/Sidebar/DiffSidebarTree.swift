@@ -6,6 +6,7 @@ struct DiffSidebarTree: View {
     @Environment(\.dsPalette) private var palette
 
     let model: DiffModel
+    var onFileRevealed: () -> Void = {}
 
     var body: some View {
         ScrollView {
@@ -13,7 +14,11 @@ struct DiffSidebarTree: View {
                 if model.fileTree.isEmpty {
                     emptyState
                 } else {
-                    DiffSidebarTreeNodes(nodes: model.fileTree, model: model)
+                    DiffSidebarTreeNodes(
+                        nodes: model.fileTree,
+                        model: model,
+                        onFileRevealed: onFileRevealed
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -40,14 +45,24 @@ struct DiffSidebarTree: View {
 private struct DiffSidebarTreeNodes: View {
     let nodes: [DiffTreeNode]
     let model: DiffModel
+    let onFileRevealed: () -> Void
 
     var body: some View {
         ForEach(nodes) { node in
             switch node {
             case let .directory(directory):
-                DiffSidebarDirectoryBranch(directory: directory, model: model)
+                DiffSidebarDirectoryBranch(
+                    directory: directory,
+                    model: model,
+                    onFileRevealed: onFileRevealed
+                )
             case let .file(file, depth):
-                DiffSidebarFileRow(file: file, depth: depth, model: model)
+                DiffSidebarFileRow(
+                    file: file,
+                    depth: depth,
+                    model: model,
+                    onFileRevealed: onFileRevealed
+                )
             }
         }
     }
@@ -58,6 +73,7 @@ private struct DiffSidebarDirectoryBranch: View {
 
     let directory: DiffTreeDirectory
     let model: DiffModel
+    let onFileRevealed: () -> Void
 
     private var isOpen: Bool {
         model.isDirectoryOpen(directory.path)
@@ -67,7 +83,11 @@ private struct DiffSidebarDirectoryBranch: View {
         DSVStack(alignment: .leading, spacing: nil) {
             DiffSidebarDirectoryRow(directory: directory, model: model)
             if isOpen {
-                DiffSidebarTreeNodes(nodes: directory.children, model: model)
+                DiffSidebarTreeNodes(
+                    nodes: directory.children,
+                    model: model,
+                    onFileRevealed: onFileRevealed
+                )
             }
         }
         .animation(
@@ -251,6 +271,7 @@ private struct DiffSidebarFileRow: View {
     let file: DiffFile
     let depth: Int
     let model: DiffModel
+    let onFileRevealed: () -> Void
 
     private var isFocused: Bool { model.isFocusedInSidebar(file) }
     private var isDimmed: Bool { model.isDimmedInSidebar(file) }
@@ -258,6 +279,7 @@ private struct DiffSidebarFileRow: View {
     var body: some View {
         Button {
             model.revealFileInReader(file)
+            onFileRevealed()
         } label: {
             DSHStack(spacing: .s8) {
                 DiffDocumentStatusIcon(status: file.status)
@@ -286,9 +308,9 @@ private struct DiffSidebarFileRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(file.name), \(file.status.title)")
         .accessibilityHint(
-            file.hunks.isEmpty
-                ? "No patch content in the reader"
-                : "Scroll to this file in the reader"
+            model.sectionFiles.contains(where: { $0.path == file.path })
+                ? "Scroll to this file in the reader"
+                : "Not shown in the reader"
         )
         .accessibilityAddTraits(isFocused ? .isSelected : [])
         .accessibilityValue(isDimmed ? "Viewed" : "Not viewed")

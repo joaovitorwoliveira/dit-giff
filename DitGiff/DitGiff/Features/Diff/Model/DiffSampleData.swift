@@ -25,7 +25,8 @@ nonisolated enum DiffSampleData {
         "Tests/BillingTests/AnnualBillingTests.swift",
     ]
 
-    /// The viewer's own order — deliberately not the sidebar's.
+    /// The viewer's own order — deliberately not the sidebar's. Text files with
+    /// hunks, then the short-entry cases the reader now shows.
     static let sectionPaths = [
         "Sources/Billing/BillingGuard.swift",
         "Sources/Billing/PlanResolver.swift",
@@ -35,6 +36,9 @@ nonisolated enum DiffSampleData {
         "Sources/Models/Subscription.swift",
         "Sources/HTTP/APIClient.swift",
         "Tests/BillingTests/AnnualBillingTests.swift",
+        "Sources/Billing/BillingConfig.swift",
+        "Tests/__Snapshots__/InvoiceView@2x.png",
+        "Tests/__Snapshots__/PlanPicker@2x.png",
     ]
 
     static let files: [DiffFile] = fileRows.map { row in
@@ -43,7 +47,8 @@ nonisolated enum DiffSampleData {
             status: row.status,
             additions: row.additions,
             deletions: row.deletions,
-            hunks: row.hunkID.map { [hunk(withID: $0)] } ?? []
+            hunks: row.hunkID.map { [hunk(withID: $0)] } ?? [],
+            body: row.body
         )
     }
 
@@ -125,40 +130,79 @@ nonisolated enum DiffSampleData {
         let additions: Int
         let deletions: Int
         let hunkID: String?
+        let body: DiffFileBodyKind
+
+        init(
+            path: String,
+            status: DiffFileStatus,
+            additions: Int,
+            deletions: Int,
+            hunkID: String?,
+            body: DiffFileBodyKind = .text
+        ) {
+            self.path = path
+            self.status = status
+            self.additions = additions
+            self.deletions = deletions
+            self.hunkID = hunkID
+            self.body = body
+        }
     }
 
     private static let fileRows: [FileRow] = [
         FileRow(path: "Sources/API/SubscriptionHandler.swift", status: .modified, additions: 1, deletions: 7, hunkID: "h4"),
-        FileRow(path: "Sources/Billing/BillingConfig.swift", status: .modified, additions: 14, deletions: 2, hunkID: nil),
+        // Sample stub: counts from the larger prototype diff, no hunk lines shipped.
+        FileRow(
+            path: "Sources/Billing/BillingConfig.swift",
+            status: .modified,
+            additions: 0,
+            deletions: 0,
+            hunkID: nil,
+            body: .noContent
+        ),
         FileRow(path: "Sources/Billing/BillingGuard.swift", status: .modified, additions: 1, deletions: 1, hunkID: "h1"),
         FileRow(path: "Sources/Billing/InvoiceScheduler.swift", status: .modified, additions: 2, deletions: 2, hunkID: "h3"),
         FileRow(path: "Sources/Billing/PlanResolver.swift", status: .modified, additions: 2, deletions: 2, hunkID: "h2"),
         FileRow(path: "Sources/Billing/ProrationCalculator.swift", status: .modified, additions: 2, deletions: 1, hunkID: "h8"),
         FileRow(path: "Sources/HTTP/APIClient.swift", status: .modified, additions: 2, deletions: 6, hunkID: "h6"),
-        FileRow(path: "Sources/HTTP/AuthInterceptor.swift", status: .modified, additions: 19, deletions: 41, hunkID: nil),
-        FileRow(path: "Sources/HTTP/AvatarLoader.swift", status: .renamed, additions: 5, deletions: 9, hunkID: nil),
-        FileRow(path: "Sources/HTTP/HTTPClientCore.swift", status: .added, additions: 214, deletions: 0, hunkID: nil),
-        FileRow(path: "Sources/HTTP/LegacyRequestSigner.swift", status: .deleted, additions: 0, deletions: 118, hunkID: nil),
-        FileRow(path: "Sources/HTTP/PaymentGateway.swift", status: .modified, additions: 24, deletions: 31, hunkID: nil),
-        FileRow(path: "Sources/HTTP/ReceiptFetcher.swift", status: .modified, additions: 9, deletions: 14, hunkID: nil),
-        FileRow(path: "Sources/HTTP/RequestBuilder.swift", status: .modified, additions: 38, deletions: 24, hunkID: nil),
-        FileRow(path: "Sources/HTTP/RetryPolicy.swift", status: .added, additions: 52, deletions: 0, hunkID: nil),
-        FileRow(path: "Sources/HTTP/SyncService.swift", status: .modified, additions: 31, deletions: 27, hunkID: nil),
-        FileRow(path: "Sources/HTTP/WebhookSender.swift", status: .modified, additions: 11, deletions: 16, hunkID: nil),
-        FileRow(path: "Sources/Legacy/LegacyImporter.swift", status: .modified, additions: 412, deletions: 412, hunkID: nil),
+        FileRow(path: "Sources/HTTP/AuthInterceptor.swift", status: .modified, additions: 19, deletions: 41, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/AvatarLoader.swift", status: .renamed, additions: 5, deletions: 9, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/HTTPClientCore.swift", status: .added, additions: 214, deletions: 0, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/LegacyRequestSigner.swift", status: .deleted, additions: 0, deletions: 118, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/PaymentGateway.swift", status: .modified, additions: 24, deletions: 31, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/ReceiptFetcher.swift", status: .modified, additions: 9, deletions: 14, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/RequestBuilder.swift", status: .modified, additions: 38, deletions: 24, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/RetryPolicy.swift", status: .added, additions: 52, deletions: 0, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/SyncService.swift", status: .modified, additions: 31, deletions: 27, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/HTTP/WebhookSender.swift", status: .modified, additions: 11, deletions: 16, hunkID: nil, body: .noContent),
+        FileRow(path: "Sources/Legacy/LegacyImporter.swift", status: .modified, additions: 412, deletions: 412, hunkID: nil, body: .noContent),
         FileRow(path: "Sources/Models/Subscription.swift", status: .modified, additions: 3, deletions: 1, hunkID: "h5"),
-        FileRow(path: "Package.resolved", status: .modified, additions: 96, deletions: 96, hunkID: nil),
+        FileRow(path: "Package.resolved", status: .modified, additions: 96, deletions: 96, hunkID: nil, body: .noContent),
         FileRow(path: "Tests/BillingTests/AnnualBillingTests.swift", status: .added, additions: 9, deletions: 0, hunkID: "h7"),
-        FileRow(path: "Tests/BillingTests/APIClientTests.swift", status: .modified, additions: 56, deletions: 34, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/BillingGuardTests.swift", status: .modified, additions: 41, deletions: 6, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/InvoiceSchedulerTests.swift", status: .modified, additions: 24, deletions: 9, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/MigrationSmokeTests.swift", status: .added, additions: 22, deletions: 0, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/PlanResolverTests.swift", status: .modified, additions: 38, deletions: 12, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/ProrationTests.swift", status: .added, additions: 27, deletions: 0, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/RetryPolicyTests.swift", status: .added, additions: 48, deletions: 0, hunkID: nil),
-        FileRow(path: "Tests/BillingTests/SubscriptionHandlerTests.swift", status: .modified, additions: 19, deletions: 22, hunkID: nil),
-        FileRow(path: "Tests/__Snapshots__/InvoiceView@2x.png", status: .modified, additions: 0, deletions: 0, hunkID: nil),
-        FileRow(path: "Tests/__Snapshots__/PlanPicker@2x.png", status: .modified, additions: 0, deletions: 0, hunkID: nil),
+        FileRow(path: "Tests/BillingTests/APIClientTests.swift", status: .modified, additions: 56, deletions: 34, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/BillingGuardTests.swift", status: .modified, additions: 41, deletions: 6, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/InvoiceSchedulerTests.swift", status: .modified, additions: 24, deletions: 9, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/MigrationSmokeTests.swift", status: .added, additions: 22, deletions: 0, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/PlanResolverTests.swift", status: .modified, additions: 38, deletions: 12, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/ProrationTests.swift", status: .added, additions: 27, deletions: 0, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/RetryPolicyTests.swift", status: .added, additions: 48, deletions: 0, hunkID: nil, body: .noContent),
+        FileRow(path: "Tests/BillingTests/SubscriptionHandlerTests.swift", status: .modified, additions: 19, deletions: 22, hunkID: nil, body: .noContent),
+        FileRow(
+            path: "Tests/__Snapshots__/InvoiceView@2x.png",
+            status: .modified,
+            additions: 0,
+            deletions: 0,
+            hunkID: nil,
+            body: .binary
+        ),
+        FileRow(
+            path: "Tests/__Snapshots__/PlanPicker@2x.png",
+            status: .modified,
+            additions: 0,
+            deletions: 0,
+            hunkID: nil,
+            body: .binary
+        ),
     ]
 
     // MARK: - Hunks

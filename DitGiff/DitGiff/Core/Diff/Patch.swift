@@ -1,19 +1,58 @@
 import Foundation
 
+/// Kind of patch body after envelope classification. Preserves the distinction
+/// between binary, submodule, no-content, and text — never inferred from empty hunks.
+nonisolated enum PatchFileKind: Equatable, Sendable {
+    case text
+    case binary
+    case submodule(oldSHA: String?, newSHA: String?)
+    case noContent
+}
+
 /// One file in an assembled patch: envelope metadata plus parsed hunks.
 nonisolated struct PatchFile: Equatable, Sendable {
     let path: String
     let oldPath: String?
     let change: PatchFileChange
     let hunks: [PatchHunk]
-    let isBinary: Bool
-    let isSubmodule: Bool
+    let kind: PatchFileKind
     let additions: Int
     let deletions: Int
     /// Exact unified-section bytes this file was parsed from. Kept so the agent can
     /// receive what git produced without reconstructing a patch that might diverge.
     let rawBody: String?
 
+    var isBinary: Bool {
+        if case .binary = kind { return true }
+        return false
+    }
+
+    var isSubmodule: Bool {
+        if case .submodule = kind { return true }
+        return false
+    }
+
+    init(
+        path: String,
+        oldPath: String?,
+        change: PatchFileChange,
+        hunks: [PatchHunk],
+        kind: PatchFileKind,
+        additions: Int,
+        deletions: Int,
+        rawBody: String? = nil
+    ) {
+        self.path = path
+        self.oldPath = oldPath
+        self.change = change
+        self.hunks = hunks
+        self.kind = kind
+        self.additions = additions
+        self.deletions = deletions
+        self.rawBody = rawBody
+    }
+
+    /// Convenience for call sites that still spell the old binary/submodule flags.
     init(
         path: String,
         oldPath: String?,
@@ -25,15 +64,27 @@ nonisolated struct PatchFile: Equatable, Sendable {
         deletions: Int,
         rawBody: String? = nil
     ) {
-        self.path = path
-        self.oldPath = oldPath
-        self.change = change
-        self.hunks = hunks
-        self.isBinary = isBinary
-        self.isSubmodule = isSubmodule
-        self.additions = additions
-        self.deletions = deletions
-        self.rawBody = rawBody
+        let kind: PatchFileKind
+        if isBinary {
+            kind = .binary
+        } else if isSubmodule {
+            kind = .submodule(oldSHA: nil, newSHA: nil)
+        } else if hunks.isEmpty {
+            // Ambiguous: empty hunks with neither flag used to mean no-content.
+            kind = .noContent
+        } else {
+            kind = .text
+        }
+        self.init(
+            path: path,
+            oldPath: oldPath,
+            change: change,
+            hunks: hunks,
+            kind: kind,
+            additions: additions,
+            deletions: deletions,
+            rawBody: rawBody
+        )
     }
 }
 
@@ -69,8 +120,7 @@ nonisolated struct Patch: Equatable, Sendable {
                 oldPath: envelope.oldPath,
                 change: envelope.change,
                 hunks: hunks,
-                isBinary: false,
-                isSubmodule: false,
+                kind: .text,
                 additions: counts.additions,
                 deletions: counts.deletions,
                 rawBody: body
@@ -82,21 +132,19 @@ nonisolated struct Patch: Equatable, Sendable {
                 oldPath: envelope.oldPath,
                 change: envelope.change,
                 hunks: [],
-                isBinary: true,
-                isSubmodule: false,
+                kind: .binary,
                 additions: 0,
                 deletions: 0,
                 rawBody: nil
             )
 
-        case .submodule:
+        case let .submodule(oldSHA, newSHA):
             return PatchFile(
                 path: envelope.path,
                 oldPath: envelope.oldPath,
                 change: envelope.change,
                 hunks: [],
-                isBinary: false,
-                isSubmodule: true,
+                kind: .submodule(oldSHA: oldSHA, newSHA: newSHA),
                 additions: 0,
                 deletions: 0,
                 rawBody: nil
@@ -108,8 +156,7 @@ nonisolated struct Patch: Equatable, Sendable {
                 oldPath: envelope.oldPath,
                 change: envelope.change,
                 hunks: [],
-                isBinary: false,
-                isSubmodule: false,
+                kind: .noContent,
                 additions: 0,
                 deletions: 0,
                 rawBody: nil

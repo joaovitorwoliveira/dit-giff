@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// The center column: each file that carries a hunk, sticky headers, and the code itself.
+/// The center column: each file in `sectionFiles` (text with hunks, or a short
+/// binary / submodule / no-content entry), sticky headers, and the body itself.
 /// A drag across lines opens the selection popover; a tap elsewhere clears it.
 struct DiffViewer: View {
     @Environment(\.dsPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let model: DiffModel
+    /// Owned by the diff shell so a sidebar file click can hand keyboard focus here
+    /// without an extra click on the reader.
+    var isFocused: FocusState<Bool>.Binding
     /// Set while a drag is choosing lines, so the viewer's "tap outside" clear does not
     /// erase the selection the drag just made.
     @State private var isSelectingLines = false
@@ -51,10 +55,44 @@ struct DiffViewer: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dsSurface(palette.surface0)
-        // A tap that is not eaten by a control or a drag clears the selection.
+        // Letter keys only fire while this column is the focused view. The sidebar
+        // filter and chat composer keep their own FocusState, so typing "join" there
+        // never reaches these handlers.
+        .focusable()
+        .focused(isFocused)
+        .focusEffectDisabled()
+        .onKeyPress(phases: .down, action: handleKeyPress)
+        // A tap that is not eaten by a control or a drag clears the selection and
+        // claims keyboard focus so j / k / n / v work without a second gesture.
         .onTapGesture {
+            isFocused.wrappedValue = true
             guard !isSelectingLines else { return }
             model.clearSelection()
+        }
+    }
+
+    private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        // Space / shift+space: left to the system. Custom paging needs scroll-offset
+        // machinery this round deliberately does not add.
+        if keyPress.key == .space {
+            return .ignored
+        }
+        guard keyPress.modifiers.isEmpty else { return .ignored }
+        switch keyPress.characters {
+        case DiffReaderKey.nextFile:
+            model.goToNextFile()
+            return .handled
+        case DiffReaderKey.previousFile:
+            model.goToPreviousFile()
+            return .handled
+        case DiffReaderKey.nextUnreadFile:
+            model.goToNextUnreadFile()
+            return .handled
+        case DiffReaderKey.toggleViewed:
+            model.toggleViewedOnFocusedFile()
+            return .handled
+        default:
+            return .ignored
         }
     }
 
@@ -83,6 +121,16 @@ struct DiffViewer: View {
             model.advanceReaderScrollRequest()
         }
     }
+}
+
+// MARK: - Keyboard
+
+/// Single-letter reader shortcuts. Named so the handler never compares magic strings.
+private enum DiffReaderKey {
+    static let nextFile = "j"
+    static let previousFile = "k"
+    static let nextUnreadFile = "n"
+    static let toggleViewed = "v"
 }
 
 // MARK: - Metrics
@@ -134,13 +182,21 @@ enum DiffViewerMetric {
 // MARK: - Previews
 
 #Preview("Viewer — dark") {
-    DiffViewer(model: DiffModel())
+    DiffViewerPreviewHost()
         .frame(width: DiffLayout.minimumViewerWidth, height: DiffLayout.minimumHeight)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Viewer — light") {
-    DiffViewer(model: DiffModel())
+    DiffViewerPreviewHost()
         .frame(width: DiffLayout.minimumViewerWidth, height: DiffLayout.minimumHeight)
         .preferredColorScheme(.light)
+}
+
+private struct DiffViewerPreviewHost: View {
+    @FocusState private var isReaderFocused: Bool
+
+    var body: some View {
+        DiffViewer(model: DiffModel(), isFocused: $isReaderFocused)
+    }
 }

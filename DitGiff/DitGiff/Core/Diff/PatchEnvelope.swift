@@ -14,7 +14,9 @@ nonisolated enum PatchFileBody: Equatable, Sendable {
     /// From the first `@@` line through the end of this file's section.
     case text(String)
     case binary
-    case submodule
+    /// Submodule pointer change. SHAs only when git printed `Subproject commit` lines —
+    /// never invented from the index abbreviated oid.
+    case submodule(oldSHA: String?, newSHA: String?)
     /// Headers only — no hunks. Covers mode-only changes and empty new files.
     case noContent
 }
@@ -361,14 +363,16 @@ nonisolated enum PatchEnvelope {
         }
 
         if modes.oldMode == "160000" || modes.newMode == "160000" {
-            return .submodule
+            let shas = submoduleSHAs(in: rest)
+            return .submodule(oldSHA: shas.old, newSHA: shas.new)
         }
         if rest.contains(where: {
             $0.hasPrefix("+Subproject commit ")
                 || $0.hasPrefix("-Subproject commit ")
                 || $0.hasPrefix(" Subproject commit ")
         }) {
-            return .submodule
+            let shas = submoduleSHAs(in: rest)
+            return .submodule(oldSHA: shas.old, newSHA: shas.new)
         }
 
         if let hunkIndex = rest.firstIndex(where: { $0.hasPrefix("@@") }) {
@@ -381,5 +385,22 @@ nonisolated enum PatchEnvelope {
 
     private static func isBinaryMarker(_ line: String) -> Bool {
         line.hasPrefix("Binary files ") && line.hasSuffix(" differ")
+    }
+
+    /// Only the SHAs git printed on Subproject commit lines. Never derived from
+    /// abbreviated index oids — those can be shorter or absent.
+    private static func submoduleSHAs(
+        in lines: ArraySlice<String>
+    ) -> (old: String?, new: String?) {
+        var oldSHA: String?
+        var newSHA: String?
+        for line in lines {
+            if line.hasPrefix("-Subproject commit ") {
+                oldSHA = String(line.dropFirst("-Subproject commit ".count))
+            } else if line.hasPrefix("+Subproject commit ") {
+                newSHA = String(line.dropFirst("+Subproject commit ".count))
+            }
+        }
+        return (oldSHA, newSHA)
     }
 }

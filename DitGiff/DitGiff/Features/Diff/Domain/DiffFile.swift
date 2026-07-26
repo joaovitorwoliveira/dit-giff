@@ -86,14 +86,79 @@ nonisolated enum DiffLoadState: Equatable, Sendable {
     case failed(message: String)
 }
 
+/// What the reader draws for one file: hunk text, or a short non-text entry.
+nonisolated enum DiffFileBodyKind: Equatable, Sendable {
+    case text
+    case binary
+    case submodule(oldSHA: String?, newSHA: String?)
+    case noContent
+
+    /// One-line description in the reader. Descriptive, never a verdict.
+    var readerSummary: String {
+        switch self {
+        case .binary:
+            "Binary file. No text to show."
+        case .submodule:
+            "Submodule pointer changed."
+        case .noContent:
+            "No content in this patch."
+        case .text:
+            ""
+        }
+    }
+
+    /// Extra line under the summary — submodule SHAs when git printed them.
+    var readerDetail: String? {
+        guard case let .submodule(oldSHA, newSHA) = self else { return nil }
+        switch (oldSHA, newSHA) {
+        case let (old?, new?):
+            return "\(old) → \(new)"
+        case let (nil, new?):
+            return new
+        case let (old?, nil):
+            return old
+        case (nil, nil):
+            return nil
+        }
+    }
+}
+
 nonisolated struct DiffFile: Identifiable, Equatable, Sendable {
     let path: String
     let status: DiffFileStatus
     let additions: Int
     let deletions: Int
     let hunks: [DiffHunk]
+    let body: DiffFileBodyKind
+
+    init(
+        path: String,
+        status: DiffFileStatus,
+        additions: Int,
+        deletions: Int,
+        hunks: [DiffHunk],
+        body: DiffFileBodyKind = .text
+    ) {
+        self.path = path
+        self.status = status
+        self.additions = additions
+        self.deletions = deletions
+        self.hunks = hunks
+        self.body = body
+    }
 
     var id: String { path }
+
+    /// Text with hunks, or one of the three short-entry kinds. A `.text` file with
+    /// empty hunks is a parsing bug — it is not treated as a special case.
+    var belongsInReader: Bool {
+        switch body {
+        case .text:
+            return !hunks.isEmpty
+        case .binary, .submodule, .noContent:
+            return true
+        }
+    }
 
     /// "Sources/Billing/" — with the trailing separator, empty for a file at the root.
     var directory: String {

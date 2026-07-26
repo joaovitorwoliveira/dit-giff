@@ -206,7 +206,49 @@ nonisolated struct PatchEnvelopeTests {
         #expect(file.path == "vendor")
         #expect(file.change == .added)
         #expect(file.newMode == "160000")
-        #expect(file.body == .submodule)
+        #expect(
+            file.body == .submodule(
+                oldSHA: nil,
+                newSHA: "0be9ccb5546fbf43ba9b891197bd01a63eba9813"
+            )
+        )
+    }
+
+    @Test func parsesSubmoduleModificationWithBothSHAs() throws {
+        let unified = """
+        diff --git a/vendor b/vendor
+        index aaaaaaa..bbbbbbb 160000
+        --- a/vendor
+        +++ b/vendor
+        @@ -1 +1 @@
+        -Subproject commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        +Subproject commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        """
+        let raw = ":160000 160000 aaaaaaa bbbbbbb M\0vendor\0"
+
+        let files = try PatchEnvelope.parse(unifiedDiff: unified, rawDiff: raw)
+        let file = try #require(files.first)
+        #expect(
+            file.body == .submodule(
+                oldSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                newSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            )
+        )
+    }
+
+    @Test func parsesSubmoduleByModeWithoutSubprojectLinesHasNoSHAs() throws {
+        let unified = """
+        diff --git a/vendor b/vendor
+        new file mode 160000
+        index 0000000..0be9ccb
+        --- /dev/null
+        +++ b/vendor
+        """
+        let raw = ":000000 160000 0000000 0be9ccb A\0vendor\0"
+
+        let files = try PatchEnvelope.parse(unifiedDiff: unified, rawDiff: raw)
+        let file = try #require(files.first)
+        #expect(file.body == .submodule(oldSHA: nil, newSHA: nil))
     }
 
     @Test func parsesModeOnlyChangeAsNoContent() throws {

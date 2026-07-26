@@ -76,8 +76,8 @@ nonisolated enum DiffCodeMetrics {
     }
 }
 
-/// Where a sidebar file click should take the reader — or that the file has no
-/// patch body to scroll to (binary, submodule, empty hunks).
+/// Where a sidebar file click should take the reader — or that the file is absent
+/// from `sectionFiles` (sample stubs, or a text parse that produced no hunks).
 nonisolated enum DiffFileNavigation: Equatable, Sendable {
     /// Scroll so this file's sticky header sits at the top of the viewport.
     case scrollToHeader(path: String)

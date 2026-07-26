@@ -22,9 +22,10 @@ extension DiffModel {
     func toggleDirectory(_ path: String) {
         if closedDirectories.contains(path) {
             closedDirectories.remove(path)
-            return
+        } else {
+            closedDirectories.insert(path)
         }
-        closedDirectories.insert(path)
+        persistReadingProgress()
     }
 
     // MARK: - Sidebar → reader navigation
@@ -93,9 +94,10 @@ extension DiffModel {
     func toggleCollapsed(_ file: DiffFile) {
         if collapsedPaths.contains(file.path) {
             collapsedPaths.remove(file.path)
-            return
+        } else {
+            collapsedPaths.insert(file.path)
         }
-        collapsedPaths.insert(file.path)
+        persistReadingProgress()
     }
 
     func setViewed(_ isViewed: Bool, for file: DiffFile) {
@@ -112,6 +114,7 @@ extension DiffModel {
         collapsedPaths = collapsed
         refreshViewedDirectoryStates()
         refreshReadProgress()
+        persistReadingProgress()
     }
 
     // MARK: - Folder aggregates
@@ -158,6 +161,7 @@ extension DiffModel {
             }
         }
         collapsedPaths = next
+        persistReadingProgress()
     }
 
     private func aggregateState(
@@ -187,5 +191,6 @@ extension DiffModel {
         collapsedPaths = collapsed
         refreshViewedDirectoryStates()
         refreshReadProgress()
+        persistReadingProgress()
     }
 }

@@ -264,10 +264,75 @@ struct DiffModelLoadTests {
         #expect(model.sectionFiles.count == 1)
         #expect(model.sectionFiles[0].path == "Sources/Billing/BillingGuard.swift")
         #expect(model.sectionFiles[0].hunks.count == 1)
+        #expect(model.sectionFiles[0].body == .text)
         #expect(model.sectionFiles[0].hunks[0].explanation == nil)
         #expect(model.canExplain(model.sectionFiles[0].hunks[0]) == false)
         #expect(model.totalHunkCount == 1)
         #expect(model.progressText == "0 of 1 hunks read")
+    }
+
+    @Test func binarySubmoduleAndNoContentFilesAppearInSectionFiles() async throws {
+        let runner = FakeCommandRunner()
+        let session = session()
+        let range = "\(session.base.fullRef)...\(session.compare.fullRef)"
+        let unified = """
+        diff --git a/logo.png b/logo.png
+        index 1111111..2222222 100644
+        Binary files a/logo.png and b/logo.png differ
+        diff --git a/vendor b/vendor
+        index 0000000..0be9ccb 160000
+        --- a/vendor
+        +++ b/vendor
+        @@ -1 +1 @@
+        -Subproject commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        +Subproject commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        diff --git a/mode.txt b/mode.txt
+        old mode 100644
+        new mode 100755
+        """
+        let raw = """
+        :100644 100644 1111111 2222222 M\0logo.png\0\
+        :160000 160000 0000000 0be9ccb M\0vendor\0\
+        :100644 100755 9ec8906 9ec8906 M\0mode.txt\0
+        """
+
+        await runner.stub(
+            "git",
+            ["rev-parse", "--verify", "--quiet", "--end-of-options", session.base.fullRef],
+            standardOutput: "abc\n"
+        )
+        await runner.stub(
+            "git",
+            ["rev-parse", "--verify", "--quiet", "--end-of-options", session.compare.fullRef],
+            standardOutput: "def\n"
+        )
+        await runner.stub(
+            "git",
+            GitService.unifiedDiffArguments(range: range),
+            standardOutput: unified
+        )
+        await runner.stub(
+            "git",
+            GitService.rawDiffArguments(range: range),
+            standardOutput: raw
+        )
+
+        let model = DiffModel(git: GitService(runner: runner))
+        model.load(session)
+        await model.pendingLoad?.value
+
+        #expect(model.loadState == .loaded)
+        #expect(model.files.map(\.path) == ["logo.png", "vendor", "mode.txt"])
+        #expect(model.sectionFiles.map(\.path) == ["logo.png", "vendor", "mode.txt"])
+        #expect(model.sectionFiles[0].body == .binary)
+        #expect(
+            model.sectionFiles[1].body == .submodule(
+                oldSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                newSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            )
+        )
+        #expect(model.sectionFiles[2].body == .noContent)
+        #expect(model.totalHunkCount == 0)
     }
 
     // MARK: - Failure

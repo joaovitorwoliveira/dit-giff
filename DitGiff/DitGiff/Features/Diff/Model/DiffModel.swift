@@ -19,6 +19,9 @@ final class DiffModel {
     let cannedAgent: DiffCannedAgent?
     /// Live AI seam. Nil in sample mode and in live sessions that have no agent yet.
     let agent: (any DiffAgent)?
+    /// Persists reading marks across relaunches. Nil in sample mode and in live
+    /// sessions constructed without a store (most unit tests).
+    let readingProgressStore: ReadingProgressStore?
 
     // MARK: - Load
 
@@ -30,6 +33,14 @@ final class DiffModel {
     /// Per-file unified body from the last loaded `Patch`. Keyed by destination path.
     var filePatchBodies: [String: String] = [:]
     var repositoryRoot: URL?
+    /// Canonical refs for the progress store. Display names stay in `baseBranch` /
+    /// `compareBranch` — different data, different purpose.
+    var progressKey: ReadingProgressKey?
+    /// Surfaced when a progress save fails. Restore failures stay silent (start clean).
+    var readingProgressError: String?
+    /// Test seam: how often `persistReadingProgress` attempted a write.
+    /// Writable module-wide so `DiffModel+Progress` can bump it (private(set) is file-scoped).
+    var progressPersistCount = 0
 
     // MARK: - Sidebar
 
@@ -135,6 +146,7 @@ final class DiffModel {
         self.usesSampleData = true
         self.cannedAgent = agent
         self.agent = nil
+        self.readingProgressStore = nil
         self.loadState = .loaded
         self.chatModel = agent.defaultChatModel
         self.reasoningEffort = agent.defaultReasoningEffort
@@ -158,7 +170,8 @@ final class DiffModel {
     init(
         git: GitService,
         agent: (any DiffAgent)? = nil,
-        replyDelay: DiffReplyDelay = NullDiffReplyDelay()
+        replyDelay: DiffReplyDelay = NullDiffReplyDelay(),
+        readingProgressStore: ReadingProgressStore? = nil
     ) {
         self.replyDelay = replyDelay
         self.readHunkBaseline = 0
@@ -166,6 +179,7 @@ final class DiffModel {
         self.usesSampleData = false
         self.cannedAgent = nil
         self.agent = agent
+        self.readingProgressStore = readingProgressStore
         self.loadState = .loading
         // Picker defaults only — not agent copy, and not read from DiffSampleData.
         self.chatModel = .opus5

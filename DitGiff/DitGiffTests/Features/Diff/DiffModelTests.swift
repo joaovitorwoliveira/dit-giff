@@ -581,7 +581,7 @@ struct DiffModelTests {
         let model = makeModel()
 
         #expect(model.files.count == 31)
-        #expect(model.sectionFiles.count == 8)
+        #expect(model.sectionFiles.map(\.path) == DiffSampleData.sectionPaths)
         #expect(DiffSampleData.declaredFileCount == 64)
         #expect(model.totalHunkCount == 47)
     }

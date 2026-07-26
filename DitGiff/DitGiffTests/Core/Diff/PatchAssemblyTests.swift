@@ -53,7 +53,7 @@ nonisolated struct PatchAssemblyTests {
                 path: "vendor",
                 oldPath: nil,
                 change: .added,
-                body: .submodule,
+                body: .submodule(oldSHA: nil, newSHA: nil),
                 oldMode: nil,
                 newMode: "160000"
             ),
@@ -78,17 +78,46 @@ nonisolated struct PatchAssemblyTests {
         let patch = try Patch.assemble(from: envelopes)
         #expect(patch.files.map(\.path) == ["bin", "vendor", "empty.txt", "mode.txt"])
         #expect(patch.files[0].isBinary)
+        #expect(patch.files[0].kind == .binary)
         #expect(patch.files[0].hunks.isEmpty)
         #expect(patch.files[0].additions == 0)
         #expect(patch.files[0].rawBody == nil)
         #expect(patch.files[1].isSubmodule)
+        #expect(patch.files[1].kind == .submodule(oldSHA: nil, newSHA: nil))
         #expect(patch.files[1].rawBody == nil)
         #expect(patch.files[2].change == .added)
+        #expect(patch.files[2].kind == .noContent)
         #expect(patch.files[2].hunks.isEmpty)
         #expect(patch.files[2].rawBody == nil)
         #expect(patch.files[3].change == .modified)
+        #expect(patch.files[3].kind == .noContent)
         #expect(patch.files[3].hunks.isEmpty)
         #expect(patch.files[3].rawBody == nil)
+    }
+
+    @Test func assembleCarriesSubmoduleSHAsFromTheEnvelope() throws {
+        let envelopes = [
+            PatchFileEnvelope(
+                path: "vendor",
+                oldPath: nil,
+                change: .modified,
+                body: .submodule(
+                    oldSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    newSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                ),
+                oldMode: "160000",
+                newMode: "160000"
+            ),
+        ]
+
+        let patch = try Patch.assemble(from: envelopes)
+        let file = try #require(patch.files.first)
+        #expect(
+            file.kind == .submodule(
+                oldSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                newSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            )
+        )
     }
 
     @Test func assemblePreservesExactEnvelopeTextAsRawBody() throws {
@@ -179,6 +208,7 @@ nonisolated struct PatchAssemblyTests {
         let renamedPure = try #require(byPath["renamed_pure.txt"])
         #expect(renamedPure.change == .renamed(from: "rename_pure.txt"))
         #expect(renamedPure.oldPath == "rename_pure.txt")
+        #expect(renamedPure.kind == .noContent)
         #expect(renamedPure.hunks.isEmpty)
         #expect(renamedPure.additions == 0)
         #expect(renamedPure.deletions == 0)
@@ -201,6 +231,7 @@ nonisolated struct PatchAssemblyTests {
         // Binary
         let binary = try #require(byPath["binary.bin"])
         #expect(binary.isBinary)
+        #expect(binary.kind == .binary)
         #expect(binary.hunks.isEmpty)
         #expect(binary.additions == 0)
         #expect(binary.deletions == 0)
@@ -208,6 +239,7 @@ nonisolated struct PatchAssemblyTests {
         // Mode-only
         let mode = try #require(byPath["mode.txt"])
         #expect(mode.change == .modified)
+        #expect(mode.kind == .noContent)
         #expect(mode.hunks.isEmpty)
         #expect(mode.additions == 0)
         #expect(mode.deletions == 0)
@@ -215,6 +247,7 @@ nonisolated struct PatchAssemblyTests {
         // Empty new file
         let empty = try #require(byPath["empty_new.txt"])
         #expect(empty.change == .added)
+        #expect(empty.kind == .noContent)
         #expect(empty.hunks.isEmpty)
 
         // No trailing newline

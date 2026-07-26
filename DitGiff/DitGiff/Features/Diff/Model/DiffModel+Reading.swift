@@ -15,11 +15,13 @@ extension DiffModel {
         guard isRead(hunk) else {
             readHunkIDs.insert(hunk.id)
             refreshReadProgress()
+            persistReadingProgress()
             return
         }
         readHunkIDs.remove(hunk.id)
         guard let file = file(atPath: hunk.filePath) else {
             refreshReadProgress()
+            persistReadingProgress()
             return
         }
         setViewed(false, for: file)

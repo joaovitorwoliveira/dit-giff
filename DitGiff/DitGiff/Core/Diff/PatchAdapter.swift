@@ -2,8 +2,8 @@
 /// screen already draws. No I/O — structure in, structure out.
 
 nonisolated enum PatchAdapter {
-    /// One `DiffFile` per `PatchFile`, in the same order. Binary, submodule, and
-    /// no-content files keep an empty hunk list.
+    /// One `DiffFile` per `PatchFile`, in the same order. Body kind is propagated;
+    /// binary, submodule, and no-content files keep an empty hunk list.
     static func toDiffFiles(_ patch: Patch) -> [DiffFile] {
         patch.files.map(adaptFile)
     }
@@ -26,8 +26,22 @@ nonisolated enum PatchAdapter {
             status: status,
             additions: file.additions,
             deletions: file.deletions,
-            hunks: hunks
+            hunks: hunks,
+            body: mapBody(file.kind)
         )
+    }
+
+    private static func mapBody(_ kind: PatchFileKind) -> DiffFileBodyKind {
+        switch kind {
+        case .text:
+            .text
+        case .binary:
+            .binary
+        case let .submodule(oldSHA, newSHA):
+            .submodule(oldSHA: oldSHA, newSHA: newSHA)
+        case .noContent:
+            .noContent
+        }
     }
 
     /// Copy has no `DiffFileStatus` case. The destination path is new content while

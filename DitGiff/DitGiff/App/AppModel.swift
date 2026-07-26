@@ -33,20 +33,22 @@ final class AppModel {
         self.diffModel = diffModel
     }
 
-    /// Composition root: real process runner, git service, and Application Support store.
+    /// Composition root: real process runner, git service, and Application Support stores.
     convenience init() {
         let runner = SystemCommandRunner()
         let git = GitService(runner: runner)
-        let store: RecentRepositoriesStore
+        let recentStore: RecentRepositoriesStore
+        let readingProgressStore: ReadingProgressStore
         do {
-            store = try RecentRepositoriesStore()
+            recentStore = try RecentRepositoriesStore()
+            readingProgressStore = try ReadingProgressStore()
         } catch {
             preconditionFailure("Could not create Application Support for DitGiff: \(error)")
         }
         self.init(
             welcomeModel: WelcomeModel(
                 git: git,
-                recentStore: store,
+                recentStore: recentStore,
                 directoryPicker: SystemDirectoryPicker()
             ),
             diffModel: DiffModel(
@@ -54,7 +56,8 @@ final class AppModel {
                 agent: ClaudeCodeDiffAgent(
                     runner: runner,
                     binaryLocator: ClaudeBinaryLocator(runner: runner)
-                )
+                ),
+                readingProgressStore: readingProgressStore
             )
         )
     }

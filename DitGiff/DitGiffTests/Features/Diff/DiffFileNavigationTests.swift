@@ -30,13 +30,13 @@ struct DiffFileNavigationTests {
         #expect(result == .scrollToHeader(path: "Sources/Billing/BillingGuard.swift"))
     }
 
-    @Test func resolveMarksUnavailableWhenTheFileHasNoHunksInTheReader() {
+    @Test func resolveMarksUnavailableWhenTheFileIsAbsentFromSectionFiles() {
         let result = DiffFileNavigationResolver.resolve(
-            filePath: "Sources/Billing/BillingConfig.swift",
+            filePath: "Sources/HTTP/AuthInterceptor.swift",
             sectionFilePaths: ["Sources/Billing/BillingGuard.swift"]
         )
 
-        #expect(result == .unavailableInReader(path: "Sources/Billing/BillingConfig.swift"))
+        #expect(result == .unavailableInReader(path: "Sources/HTTP/AuthInterceptor.swift"))
     }
 
     @Test func navigationDoesNotExpandCollapsedFiles() {
@@ -155,18 +155,32 @@ struct DiffFileNavigationTests {
         #expect(second.attempt == DiffReaderScrollRetry.animatedAttempt)
     }
 
-    @Test func revealingAFileWithoutHunksFocusesButDoesNotScroll() throws {
+    @Test func revealingANoContentFileScrollsToItsHeader() throws {
         let model = makeModel()
         let billingConfig = try #require(
             model.file(atPath: "Sources/Billing/BillingConfig.swift")
         )
+        #expect(billingConfig.body == .noContent)
         #expect(billingConfig.hunks.isEmpty)
-        #expect(model.sectionFiles.contains(where: { $0.path == billingConfig.path }) == false)
+        #expect(model.sectionFiles.contains(where: { $0.path == billingConfig.path }))
 
         model.revealFileInReader(billingConfig)
 
         #expect(model.isFocusedInSidebar(billingConfig))
-        #expect(model.readerScrollRequest == nil)
+        #expect(model.readerScrollRequest?.path == billingConfig.path)
+    }
+
+    @Test func revealingABinarySampleFileScrollsToItsHeader() throws {
+        let model = makeModel()
+        let snapshot = try #require(
+            model.file(atPath: "Tests/__Snapshots__/InvoiceView@2x.png")
+        )
+        #expect(snapshot.body == .binary)
+        #expect(model.sectionFiles.contains(where: { $0.path == snapshot.path }))
+
+        model.revealFileInReader(snapshot)
+
+        #expect(model.readerScrollRequest?.path == snapshot.path)
     }
 
     @Test func revealingACollapsedFileKeepsItCollapsedAndStillScrollsToItsHeader() throws {

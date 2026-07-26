@@ -17,17 +17,22 @@ struct DiffFileBody: View {
     var body: some View {
         Group {
             if !isCollapsed {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(file.hunks) { hunk in
-                        DiffHunkBlock(
-                            hunk: hunk,
-                            model: model,
-                            selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
-                            showsSelectionPopover: selectedHunkID == hunk.id
-                                && model.canPresentSelectionPopover,
-                            isSelectingLines: $isSelectingLines
-                        )
+                switch file.body {
+                case .text:
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(file.hunks) { hunk in
+                            DiffHunkBlock(
+                                hunk: hunk,
+                                model: model,
+                                selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
+                                showsSelectionPopover: selectedHunkID == hunk.id
+                                    && model.canPresentSelectionPopover,
+                                isSelectingLines: $isSelectingLines
+                            )
+                        }
                     }
+                case .binary, .submodule, .noContent:
+                    DiffNonTextFileBody(file: file)
                 }
             }
         }

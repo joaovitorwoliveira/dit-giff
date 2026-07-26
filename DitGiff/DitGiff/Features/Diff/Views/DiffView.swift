@@ -38,6 +38,10 @@ struct DiffView: View {
     /// In-gesture ghost position only. `nil` when idle. Never drives sidebar or reader layout.
     @State private var previewSidebarWidth: CGFloat?
 
+    /// Keyboard focus for the reader column. Sidebar file clicks claim it so j / k / n / v
+    /// work immediately; the filter and chat composer use their own FocusState.
+    @FocusState private var isReaderFocused: Bool
+
     var body: some View {
         DSVStack(spacing: nil) {
             DiffTopBar(model: model, back: back, toggleTheme: toggleTheme)
@@ -90,7 +94,7 @@ struct DiffView: View {
                         onCommit: commitSidebarWidth
                     )
                 }
-                DiffViewer(model: model)
+                DiffViewer(model: model, isFocused: $isReaderFocused)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if model.isChatOpen {
                     DiffChatPanel(model: model)
@@ -125,7 +129,7 @@ struct DiffView: View {
     /// diff slides over instead of jumping. Preferred width is untouched while closed,
     /// so reopening restores the reader's last drag.
     private var sidebar: some View {
-        DiffSidebar(model: model)
+        DiffSidebar(model: model, onFileRevealed: { isReaderFocused = true })
             .frame(width: model.isSidebarOpen ? appliedSidebarWidth : 0, alignment: .top)
             .clipped()
             .animation(

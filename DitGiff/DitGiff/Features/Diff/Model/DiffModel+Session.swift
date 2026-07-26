@@ -16,6 +16,12 @@ extension DiffModel {
         baseBranch = session.base.displayName
         repositoryName = session.repository.displayName
         repositoryRoot = session.repository.rootURL
+        progressKey = ReadingProgressKey(
+            repositoryPath: session.repository.rootURL.path,
+            baseRef: session.base.fullRef,
+            compareRef: session.compare.fullRef
+        )
+        readingProgressError = nil
         files = []
         sectionFiles = []
         viewedPaths = []
@@ -63,7 +69,7 @@ extension DiffModel {
     private func apply(patch: Patch) {
         let adapted = PatchAdapter.toDiffFiles(patch)
         files = adapted
-        sectionFiles = adapted.filter { !$0.hunks.isEmpty }
+        sectionFiles = adapted.filter(\.belongsInReader)
         declaredFileCount = adapted.count
         declaredAdditions = adapted.reduce(0) { $0 + $1.additions }
         declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
@@ -78,6 +84,8 @@ extension DiffModel {
         loadState = .loaded
         refreshFilterCaches()
         refreshReadProgress()
+        // Fingerprints need `filePatchBodies` and `files` — restore only after apply.
+        restoreReadingProgress()
     }
 
     private static func presentableMessage(for error: Error) -> String {
@@ -107,6 +115,8 @@ extension DiffModel {
         explanationMessageIDs = [:]
         filePatchBodies = [:]
         repositoryRoot = nil
+        progressKey = nil
+        readingProgressError = nil
         chatScrollRequest = nil
 
         if usesSampleData {

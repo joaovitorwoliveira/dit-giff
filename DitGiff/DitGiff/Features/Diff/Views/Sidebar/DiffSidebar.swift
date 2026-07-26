@@ -6,12 +6,14 @@ struct DiffSidebar: View {
     @Environment(\.dsPalette) private var palette
 
     @Bindable var model: DiffModel
+    /// Called after a file row click so the shell can hand keyboard focus to the reader.
+    var onFileRevealed: () -> Void = {}
 
     var body: some View {
         DSVStack(alignment: .leading, spacing: nil) {
             DiffSidebarHeader(model: model)
             DiffSidebarFilter(model: model)
-            DiffSidebarTree(model: model)
+            DiffSidebarTree(model: model, onFileRevealed: onFileRevealed)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .dsSurface(palette.surface1)

@@ -229,10 +229,21 @@ nonisolated struct PatchAdapterTests {
 
     // MARK: - Empty-hunk kinds
 
-    @Test func binarySubmoduleAndNoContentBecomeFilesWithEmptyHunks() {
+    @Test func binarySubmoduleAndNoContentPropagateBodyKindWithEmptyHunks() {
         let patch = Patch(files: [
             file(path: "a.bin", change: .added, isBinary: true),
-            file(path: "vendor", change: .modified, isSubmodule: true),
+            PatchFile(
+                path: "vendor",
+                oldPath: nil,
+                change: .modified,
+                hunks: [],
+                kind: .submodule(
+                    oldSHA: "aaa111",
+                    newSHA: "bbb222"
+                ),
+                additions: 0,
+                deletions: 0
+            ),
             file(path: "empty.txt", change: .added),
         ])
 
@@ -240,10 +251,28 @@ nonisolated struct PatchAdapterTests {
         #expect(files.map(\.path) == ["a.bin", "vendor", "empty.txt"])
         #expect(files.allSatisfy { $0.hunks.isEmpty })
         #expect(files.allSatisfy { $0.additions == 0 && $0.deletions == 0 })
+        #expect(files[0].body == .binary)
+        #expect(files[1].body == .submodule(oldSHA: "aaa111", newSHA: "bbb222"))
+        #expect(files[2].body == .noContent)
+        #expect(files[0].belongsInReader)
+        #expect(files[1].belongsInReader)
+        #expect(files[2].belongsInReader)
 
         // DiffTree.build only walks paths — empty hunk lists must not crash it.
         let tree = DiffTree.build(files: files)
         #expect(tree.count == 3)
+    }
+
+    @Test func textBodyDoesNotBelongInReaderWhenHunksAreEmpty() {
+        let file = DiffFile(
+            path: "Broken.swift",
+            status: .modified,
+            additions: 0,
+            deletions: 0,
+            hunks: [],
+            body: .text
+        )
+        #expect(file.belongsInReader == false)
     }
 
     // MARK: - Counts

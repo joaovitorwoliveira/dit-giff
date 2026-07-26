@@ -21,7 +21,7 @@ final class DiffModel {
     let agent: (any DiffAgent)?
     /// Persists reading marks across relaunches. Nil in sample mode and in live
     /// sessions constructed without a store (most unit tests).
-    let readingProgressStore: ReadingProgressStore?
+    let readingProgressStore: (any ReadingProgressStoring)?
 
     // MARK: - Load
 
@@ -31,16 +31,18 @@ final class DiffModel {
     /// Bumped on every load start and on return-to-Welcome so a stale task cannot write.
     var loadGeneration = 0
     /// Per-file unified body from the last loaded `Patch`. Keyed by destination path.
+    /// Text only — used by Explain and by reading fingerprints.
     var filePatchBodies: [String: String] = [:]
+    /// Per-file raw header from the last loaded `Patch`. Non-text fingerprints only —
+    /// kept out of `filePatchBodies` so Explain stays off for binary/submodule/no-content.
+    var filePatchHeaders: [String: String] = [:]
     var repositoryRoot: URL?
     /// Canonical refs for the progress store. Display names stay in `baseBranch` /
     /// `compareBranch` — different data, different purpose.
     var progressKey: ReadingProgressKey?
-    /// Surfaced when a progress save fails. Restore failures stay silent (start clean).
+    /// Surfaced when a progress save or restore fails. Presentable; clear with
+    /// `clearReadingProgressError()`.
     var readingProgressError: String?
-    /// Test seam: how often `persistReadingProgress` attempted a write.
-    /// Writable module-wide so `DiffModel+Progress` can bump it (private(set) is file-scoped).
-    var progressPersistCount = 0
 
     // MARK: - Sidebar
 
@@ -171,7 +173,7 @@ final class DiffModel {
         git: GitService,
         agent: (any DiffAgent)? = nil,
         replyDelay: DiffReplyDelay = NullDiffReplyDelay(),
-        readingProgressStore: ReadingProgressStore? = nil
+        readingProgressStore: (any ReadingProgressStoring)? = nil
     ) {
         self.replyDelay = replyDelay
         self.readHunkBaseline = 0

@@ -4,16 +4,53 @@ import Testing
 @testable import DitGiff
 
 /// Reading progress wired through `DiffModel`: real store on a temp directory, canned
-/// git diffs via `FakeCommandRunner`. No mocks of the store itself.
+/// git diffs via `FakeCommandRunner`. Write counts come from a store fake, not the model.
 @MainActor
 struct DiffModelProgressTests {
 
     // MARK: - Harness
 
+    /// Forwards to a real `ReadingProgressStore` and counts `save` calls.
+    private final class CountingReadingProgressStore: ReadingProgressStoring, @unchecked Sendable {
+        let inner: ReadingProgressStore
+        private(set) var saveCount = 0
+
+        init(inner: ReadingProgressStore) {
+            self.inner = inner
+        }
+
+        func load(key: ReadingProgressKey) throws -> SessionReadingProgress? {
+            try inner.load(key: key)
+        }
+
+        func save(
+            key: ReadingProgressKey,
+            progress: SessionReadingProgress,
+            updatedAt: Date
+        ) throws {
+            saveCount += 1
+            try inner.save(key: key, progress: progress, updatedAt: updatedAt)
+        }
+    }
+
+    /// Store that always fails on load — restore must surface an error and start clean.
+    private struct FailingLoadStore: ReadingProgressStoring {
+        func load(key: ReadingProgressKey) throws -> SessionReadingProgress? {
+            throw ReadingProgressStoreError.corrupted(reason: "fixture: unreadable JSON")
+        }
+
+        func save(
+            key: ReadingProgressKey,
+            progress: SessionReadingProgress,
+            updatedAt: Date
+        ) throws {}
+    }
+
     @MainActor
     private final class ProgressHarness {
         let directory: URL
         let store: ReadingProgressStore
+        let countingStore: CountingReadingProgressStore
         let runner: FakeCommandRunner
         let model: DiffModel
 
@@ -28,10 +65,11 @@ struct DiffModelProgressTests {
                 withIntermediateDirectories: true
             )
             store = try ReadingProgressStore(directoryURL: directory)
+            countingStore = CountingReadingProgressStore(inner: store)
             runner = FakeCommandRunner()
             model = DiffModel(
                 git: GitService(runner: runner),
-                readingProgressStore: store
+                readingProgressStore: countingStore
             )
         }
 
@@ -144,6 +182,39 @@ struct DiffModelProgressTests {
         return (unified, raw)
     }
 
+    private func twoHunkFilePatch(
+        path: String = "Sources/A.swift"
+    ) -> (unified: String, raw: String) {
+        let unified = """
+        diff --git a/\(path) b/\(path)
+        index d95f3ad..5ea2ed4 100644
+        --- a/\(path)
+        +++ b/\(path)
+        @@ -1 +1 @@
+        -old-one
+        +new-one
+        @@ -10 +10 @@
+        -old-two
+        +new-two
+        """
+        let raw = ":100644 100644 d95f3ad 5ea2ed4 M\0\(path)\0"
+        return (unified, raw)
+    }
+
+    private func binaryPatch(
+        path: String = "Assets/logo.png",
+        oldBlob: String,
+        newBlob: String
+    ) -> (unified: String, raw: String) {
+        let unified = """
+        diff --git a/\(path) b/\(path)
+        index \(oldBlob)..\(newBlob) 100644
+        Binary files a/\(path) and b/\(path) differ
+        """
+        let raw = ":100644 100644 \(oldBlob) \(newBlob) M\0\(path)\0"
+        return (unified, raw)
+    }
+
     private func load(
         _ model: DiffModel,
         session: DiffSession,
@@ -176,7 +247,7 @@ struct DiffModelProgressTests {
         let file = try #require(harness.model.files.first)
         harness.model.setViewed(true, for: file)
         #expect(harness.model.viewedPaths.contains(file.path))
-        #expect(harness.model.progressPersistCount == 1)
+        #expect(harness.countingStore.saveCount == 1)
         #expect(harness.model.readingProgressError == nil)
 
         let reopened = DiffModel(
@@ -398,10 +469,10 @@ struct DiffModelProgressTests {
             }
         )
 
-        harness.model.progressPersistCount = 0
+        let savesBefore = harness.countingStore.saveCount
         harness.model.toggleViewed(in: directory)
 
-        #expect(harness.model.progressPersistCount == 1)
+        #expect(harness.countingStore.saveCount == savesBefore + 1)
         #expect(directory.descendantFiles.allSatisfy(harness.model.isViewed))
     }
 
@@ -450,7 +521,6 @@ struct DiffModelProgressTests {
         if let hunk = billing.hunks.first {
             sample.toggleRead(hunk)
         }
-        #expect(sample.progressPersistCount == 0)
 
         let after = try String(contentsOf: store.fileURL, encoding: .utf8)
         #expect(after == before)
@@ -498,5 +568,154 @@ struct DiffModelProgressTests {
 
         #expect(reopened.focusedFilePath == path)
         #expect(reopened.readerScrollRequest?.path == path)
+    }
+
+    /// Focus alone must survive relaunch — without a neighbouring setViewed that
+    /// accidentally writes the session.
+    @Test func revealAlonePersistsFocusAcrossRelaunch() async throws {
+        let harness = try ProgressHarness()
+        defer { harness.cleanup() }
+
+        let session = session()
+        let path = "Sources/A.swift"
+        let patch = singleFilePatch(path: path)
+        await load(
+            harness.model,
+            session: session,
+            on: harness.runner,
+            unified: patch.unified,
+            raw: patch.raw
+        )
+
+        let file = try #require(harness.model.file(atPath: path))
+        let savesBefore = harness.countingStore.saveCount
+        harness.model.revealFileInReader(file)
+        #expect(harness.countingStore.saveCount == savesBefore + 1)
+        #expect(harness.model.focusedFilePath == path)
+        #expect(harness.model.viewedPaths.isEmpty)
+        #expect(harness.model.readHunkIDs.isEmpty)
+
+        let reopened = DiffModel(
+            git: GitService(runner: harness.runner),
+            readingProgressStore: harness.store
+        )
+        await load(
+            reopened,
+            session: session,
+            on: harness.runner,
+            unified: patch.unified,
+            raw: patch.raw
+        )
+
+        #expect(reopened.focusedFilePath == path)
+        #expect(reopened.readerScrollRequest?.path == path)
+        #expect(reopened.viewedPaths.isEmpty)
+    }
+
+    @Test func partialReadHunkIDsSurviveIdenticalPatch() async throws {
+        let harness = try ProgressHarness()
+        defer { harness.cleanup() }
+
+        let session = session()
+        let path = "Sources/A.swift"
+        let patch = twoHunkFilePatch(path: path)
+        await load(
+            harness.model,
+            session: session,
+            on: harness.runner,
+            unified: patch.unified,
+            raw: patch.raw
+        )
+
+        let file = try #require(harness.model.file(atPath: path))
+        #expect(file.hunks.count == 2)
+        let firstHunk = try #require(file.hunks.first)
+        let secondHunk = try #require(file.hunks.last)
+        harness.model.toggleRead(firstHunk)
+        #expect(harness.model.readHunkIDs == [firstHunk.id])
+        #expect(harness.model.readHunkIDs.contains(secondHunk.id) == false)
+
+        let reopened = DiffModel(
+            git: GitService(runner: harness.runner),
+            readingProgressStore: harness.store
+        )
+        await load(
+            reopened,
+            session: session,
+            on: harness.runner,
+            unified: patch.unified,
+            raw: patch.raw
+        )
+
+        #expect(reopened.readHunkIDs == [firstHunk.id])
+        #expect(reopened.readHunkIDs.contains(secondHunk.id) == false)
+        #expect(reopened.viewedPaths.isEmpty)
+    }
+
+    @Test func binaryBlobIndexChangeDropsViewedMark() async throws {
+        let harness = try ProgressHarness()
+        defer { harness.cleanup() }
+
+        let session = session()
+        let path = "Assets/logo.png"
+        let original = binaryPatch(path: path, oldBlob: "a1b2c3d", newBlob: "d4e5f6a")
+        await load(
+            harness.model,
+            session: session,
+            on: harness.runner,
+            unified: original.unified,
+            raw: original.raw
+        )
+
+        let file = try #require(harness.model.file(atPath: path))
+        #expect(file.body == .binary)
+        #expect(harness.model.filePatchBodies[path] == nil)
+        #expect(harness.model.filePatchHeaders[path]?.contains("index a1b2c3d..d4e5f6a") == true)
+        harness.model.setViewed(true, for: file)
+        #expect(harness.model.viewedPaths.contains(path))
+
+        // Same path and status; only the index blob SHAs change — the failure mode
+        // of the old status|path descriptor.
+        let changed = binaryPatch(path: path, oldBlob: "a1b2c3d", newBlob: "9999999")
+        let reopened = DiffModel(
+            git: GitService(runner: harness.runner),
+            readingProgressStore: harness.store
+        )
+        await load(
+            reopened,
+            session: session,
+            on: harness.runner,
+            unified: changed.unified,
+            raw: changed.raw
+        )
+
+        #expect(reopened.viewedPaths.contains(path) == false)
+        #expect(reopened.collapsedPaths.contains(path) == false)
+        #expect(reopened.filePatchHeaders[path]?.contains("index a1b2c3d..9999999") == true)
+    }
+
+    @Test func unreadableProgressSurfacesErrorAndStartsClean() async throws {
+        let runner = FakeCommandRunner()
+        let model = DiffModel(
+            git: GitService(runner: runner),
+            readingProgressStore: FailingLoadStore()
+        )
+        let session = session()
+        let patch = singleFilePatch()
+        await load(
+            model,
+            session: session,
+            on: runner,
+            unified: patch.unified,
+            raw: patch.raw
+        )
+
+        let error = try #require(model.readingProgressError)
+        #expect(error.contains("Saved reading progress could not be read"))
+        #expect(error.contains("Starting this review clean"))
+        #expect(model.viewedPaths.isEmpty)
+
+        model.clearReadingProgressError()
+        #expect(model.readingProgressError == nil)
     }
 }

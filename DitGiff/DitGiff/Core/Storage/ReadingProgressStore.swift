@@ -2,7 +2,7 @@ import Foundation
 
 /// Dumb JSON map of reading progress keyed by repository + base/compare refs.
 /// Does not talk to git or DiffModel — load and save only.
-nonisolated struct ReadingProgressStore: Sendable {
+nonisolated struct ReadingProgressStore: ReadingProgressStoring, Sendable {
     static let currentSchemaVersion = 1
     static let maxEntries = 32
     static let fileName = "reading-progress.json"

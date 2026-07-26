@@ -32,6 +32,7 @@ extension DiffModel {
         readerScrollRequest = nil
         closedDirectories = []
         filePatchBodies = [:]
+        filePatchHeaders = [:]
         completedFileExplanations = [:]
         explanationMessageIDs = [:]
         chatScrollRequest = nil
@@ -75,16 +76,20 @@ extension DiffModel {
         declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
         declaredTotalHunkCount = adapted.reduce(0) { $0 + $1.hunks.count }
         var bodies: [String: String] = [:]
+        var headers: [String: String] = [:]
         for file in patch.files {
             if let rawBody = file.rawBody {
                 bodies[file.path] = rawBody
+            } else {
+                headers[file.path] = file.rawHeader
             }
         }
         filePatchBodies = bodies
+        filePatchHeaders = headers
         loadState = .loaded
         refreshFilterCaches()
         refreshReadProgress()
-        // Fingerprints need `filePatchBodies` and `files` — restore only after apply.
+        // Fingerprints need bodies/headers and `files` — restore only after apply.
         restoreReadingProgress()
     }
 
@@ -114,6 +119,7 @@ extension DiffModel {
         completedFileExplanations = [:]
         explanationMessageIDs = [:]
         filePatchBodies = [:]
+        filePatchHeaders = [:]
         repositoryRoot = nil
         progressKey = nil
         readingProgressError = nil

@@ -57,6 +57,23 @@ nonisolated enum ReadingProgressStoreError: Error, Equatable, LocalizedError {
     }
 }
 
+/// Seam for DiffModel: load/save only. Tests inject a counting fake; production uses
+/// `ReadingProgressStore`.
+nonisolated protocol ReadingProgressStoring: Sendable {
+    func load(key: ReadingProgressKey) throws -> SessionReadingProgress?
+    func save(
+        key: ReadingProgressKey,
+        progress: SessionReadingProgress,
+        updatedAt: Date
+    ) throws
+}
+
+extension ReadingProgressStoring {
+    func save(key: ReadingProgressKey, progress: SessionReadingProgress) throws {
+        try save(key: key, progress: progress, updatedAt: Date())
+    }
+}
+
 // MARK: - Fingerprint
 
 /// Stable hex SHA-256 of the raw patch body. Deterministic across process launches —

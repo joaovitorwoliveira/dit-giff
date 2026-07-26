@@ -9,7 +9,6 @@ extension DiffModel {
         guard !usesSampleData else { return }
         guard let store = readingProgressStore, let key = progressKey else { return }
 
-        progressPersistCount += 1
         let progress = makeSessionReadingProgress()
         do {
             try store.save(key: key, progress: progress)
@@ -20,7 +19,8 @@ extension DiffModel {
     }
 
     /// Load → reconcile → apply. Runs after `apply(patch:)` so fingerprints see
-    /// `filePatchBodies`. A store failure starts clean rather than blocking the diff.
+    /// `filePatchBodies` / `filePatchHeaders`. A store failure starts clean and
+    /// surfaces `readingProgressError` so the reader is not left guessing.
     func restoreReadingProgress() {
         guard !usesSampleData else { return }
         guard let store = readingProgressStore, let key = progressKey else { return }
@@ -29,7 +29,10 @@ extension DiffModel {
         do {
             saved = try store.load(key: key)
         } catch {
-            // Prefer a clean session over claiming reads we cannot verify.
+            // Prefer a clean session over claiming reads we cannot verify — but say so.
+            readingProgressError = Self.unreadableProgressMessage(
+                detail: Self.presentableProgressMessage(for: error)
+            )
             return
         }
         guard let saved else { return }
@@ -39,6 +42,11 @@ extension DiffModel {
             currentFingerprints: currentReadingFingerprints()
         )
         applyRestoredProgress(reconciled)
+    }
+
+    /// Lets the view dismiss a surfaced progress error after the reader has seen it.
+    func clearReadingProgressError() {
+        readingProgressError = nil
     }
 
     // MARK: - Snapshot / restore
@@ -118,41 +126,26 @@ extension DiffModel {
         return fingerprints
     }
 
-    /// Text files hash the raw patch body. Binary / submodule / no-content hash a
-    /// deterministic descriptor from what the assembled patch still carries — see
-    /// `nonTextReadingDescriptor`. Empty string is never used as a shared stand-in.
+    /// Text files hash the raw patch body. Non-text files hash the raw header git
+    /// printed for that section (`index` blob lines, modes, Subproject commit) —
+    /// never a synthesized status|path descriptor, which misses content changes.
     func readingFingerprint(for file: DiffFile) -> String {
         if let rawBody = filePatchBodies[file.path] {
             return readingProgressFingerprint(for: rawBody)
         }
-        return readingProgressFingerprint(for: nonTextReadingDescriptor(for: file))
+        if let header = filePatchHeaders[file.path] {
+            return readingProgressFingerprint(for: header)
+        }
+        // Loaded files always carry a body or a header from assemble. Path-keyed
+        // fallback avoids colliding unrelated missing entries onto one digest.
+        return readingProgressFingerprint(for: "missing-fingerprint|\(file.path)")
     }
 
-    /// PatchEnvelope does not keep the `index abc..def` blob line for binaries, so a
-    /// binary content change is invisible here. Submodule SHAs are included when git
-    /// printed `Subproject commit` lines.
-    private func nonTextReadingDescriptor(for file: DiffFile) -> String {
-        let statusToken: String
-        switch file.status {
-        case .added: statusToken = "added"
-        case .deleted: statusToken = "deleted"
-        case .modified: statusToken = "modified"
-        case .renamed: statusToken = "renamed"
-        }
+    private static let unreadableProgressPrefix =
+        "Saved reading progress could not be read. Starting this review clean."
 
-        switch file.body {
-        case .text:
-            // Text without a raw body should not happen; still avoid colliding with binary.
-            return "text|\(statusToken)|\(file.path)"
-        case .binary:
-            return "binary|\(statusToken)|\(file.path)"
-        case let .submodule(oldSHA, newSHA):
-            let old = oldSHA ?? ""
-            let new = newSHA ?? ""
-            return "submodule|\(statusToken)|\(file.path)|\(old)|\(new)"
-        case .noContent:
-            return "noContent|\(statusToken)|\(file.path)"
-        }
+    private static func unreadableProgressMessage(detail: String) -> String {
+        "\(unreadableProgressPrefix) \(detail)"
     }
 
     private static func presentableProgressMessage(for error: Error) -> String {

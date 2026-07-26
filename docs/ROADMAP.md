@@ -9,21 +9,6 @@ A ordem importa: cada um destrava o seguinte.
 
 ---
 
-## Slice 5 — O leitor (o que sobrou)
-
-Marcar como lido, colapsar, esmaecer, a árvore, a sidebar redimensionável, navegar
-clicando no arquivo e a rolagem fluida foram feitos junto com o Slice 3. O que falta:
-
-- Navegação por teclado, e ir para o próximo não lido.
-- Onde eu parei sobrevive a fechar o app, por par de repositório e branch.
-- Colapsar uma pasta **sem** marcá-la como vista. Hoje as duas ações andam juntas, de
-  propósito; se na prática fizer falta separar, é aqui.
-- Arquivo binário, submódulo e arquivo sem conteúdo aparecem na árvore mas não existem
-  no leitor. Deveriam aparecer como uma entrada curta dizendo o que são, para que clicar
-  neles funcione como em qualquer outro arquivo.
-
-**Pronto quando** eu leio um MR inteiro sem tocar no mouse.
-
 ## Slice 6 — Syntax highlighting
 
 Código sem cor cansa. Fica separado porque é grande e independente.
@@ -92,6 +77,48 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
 
 **Pronto quando** eu abro pelo Launchpad e não penso no Xcode.
 
+## Dívida conhecida
+
+Nada aqui bloqueia a v1. São coisas que eu decidi não consertar na hora, com o motivo
+registrado para eu não redescobrir o mesmo raciocínio daqui a três meses.
+
+- **O flake do `SystemCommandRunnerTests`.** `manyCancelledRunsDoNotExhaustResources`
+  falha por timeout no arquivo de pid de forma intermitente: falhou numa execução e
+  passou na seguinte sem nenhuma mudança no código. Mora na camada de processo, que é a
+  costura da qual o app inteiro depende, então é o flake que menos dá para ignorar para
+  sempre.
+
+- **A rolagem por teclado não tem a inércia do sistema.** Espaço e setas paginam de forma
+  discreta. O caminho nativo está fechado: o `.focusable` do SwiftUI instala um proxy que
+  engole o first responder, então a tecla nunca chega ao `NSScrollView`. Isso foi
+  verificado com sonda, não deduzido. Só AppKit resolveria, e o `AGENTS.md` manda medir
+  antes de reabrir essa migração.
+
+- **Colapsar o corpo dos arquivos de uma pasta sem marcá-la como vista.**
+  `toggleCollapsed(in:)` existe no model e nenhuma view chama. Fechar a pasta na árvore já
+  não marca nada como visto; o que falta é só a versão que colapsa os corpos no leitor, e
+  não está claro que alguém queira isso.
+
+- **Uma escrita em disco por tecla apertada.** O progresso salva a cada mutação, sem
+  debounce, e isso passou a incluir mudar o foco. Foi decisão consciente: debounce
+  introduz uma costura de tempo que não dá para testar de forma determinística, e perde
+  progresso se o app morrer. Nunca foi medido com a tecla segurada em autorepeat.
+
+- **A barra de progresso não conta binário, submódulo nem arquivo vazio.** Ela conta hunks
+  lidos, e esses três têm zero hunks. Marcar como visto funciona e a árvore esmaece; só o
+  número não se mexe.
+
+- **O que a impressão digital de um arquivo não-textual não alcança.** Ela é o cabeçalho
+  cru que o git emitiu, então o oid de blob cobre mudança de conteúdo de binário. Se o git
+  omitir a linha `index` de um binário que mudou, o cabeçalho não muda e o arquivo
+  restaura como visto. Colisão de oid abreviado é teórica. Preferi a limitação registrada
+  a uma solução que finge.
+
+- **Arquivo de texto não confere o cabeçalho.** A impressão digital dele é só o corpo dos
+  hunks. Não consegui construir um furo prático: chmod junto com edição já muda os hunks,
+  e chmod sozinho cai no caminho de `noContent`, que usa o cabeçalho. Fica registrado como
+  assimetria entre os dois caminhos, para quem mexer nisso depois.
+
 ---
 
 ## Feito
@@ -115,6 +142,12 @@ O que separa "funciona na minha máquina" de "eu uso todo dia".
 - **Organização do código.** `Features/Diff` saiu de 12 arquivos soltos para `Domain/`,
   `Model/` e `Views/`, sem nenhum arquivo acima de 500 linhas, e os testes passaram a
   espelhar a estrutura do app. O padrão está no `AGENTS.md`.
+- **Slice 5 — O leitor por teclado, e o progresso que sobrevive.** `j` e `k` andam entre
+  arquivos, `n` vai para o próximo não lido e `v` marca como visto; espaço e as setas rolam
+  dentro do arquivo. Binário, submódulo e arquivo sem conteúdo passaram a existir no leitor
+  como uma entrada curta, em vez de aparecer só na árvore. E onde eu parei sobrevive a
+  fechar o app, por par de repositório e branch, conferindo arquivo por arquivo: só mantém
+  o progresso de quem tem o patch idêntico ao da última vez.
 
 ### O que não vale reabrir
 

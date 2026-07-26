@@ -14,6 +14,12 @@ struct DiffViewer: View {
     /// Set while a drag is choosing lines, so the viewer's "tap outside" clear does not
     /// erase the selection the drag just made.
     @State private var isSelectingLines = false
+    /// Point-mode scroll position for in-file keyboard paging. File jumps still use
+    /// ScrollViewReader; geometry below is the source of truth for the current offset
+    /// because a reader jump does not update `scrollPosition.y`.
+    @State private var scrollPosition = ScrollPosition(y: 0)
+    @State private var scrollOffsetY: CGFloat = 0
+    @State private var scrollViewportHeight: CGFloat = 0
 
     var body: some View {
         // Vertical only: long lines wrap inside the viewport. With no horizontal axis,
@@ -24,6 +30,9 @@ struct DiffViewer: View {
         // The id lives on the sticky header (one per section file). LazyVStack can
         // resolve that id without materialising every code line between here and there.
         ScrollViewReader { scrollProxy in
+            // Focus stays on the ScrollView so j / k / n / v fire here. Native space
+            // paging does not: `.focusable()` installs a KeyViewProxy first responder,
+            // so in-file keys are applied through scrollPosition instead.
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     ForEach(model.sectionFiles) { file in
@@ -48,6 +57,20 @@ struct DiffViewer: View {
                 .dsPadding(.horizontal, .s24)
                 .dsPadding(.bottom, .s48)
             }
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: DiffReaderVisibleScroll.self) { geometry in
+                DiffReaderVisibleScroll(
+                    offsetY: geometry.contentOffset.y,
+                    viewportHeight: geometry.containerSize.height
+                )
+            } action: { _, visible in
+                scrollOffsetY = visible.offsetY
+                scrollViewportHeight = visible.viewportHeight
+            }
+            .focusable()
+            .focused(isFocused)
+            .focusEffectDisabled()
+            .onKeyPress(phases: .down, action: handleKeyPress)
             .onChange(of: model.readerScrollRequest) { _, request in
                 guard let request else { return }
                 performReaderScroll(request, scrollProxy: scrollProxy)
@@ -55,13 +78,6 @@ struct DiffViewer: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .dsSurface(palette.surface0)
-        // Letter keys only fire while this column is the focused view. The sidebar
-        // filter and chat composer keep their own FocusState, so typing "join" there
-        // never reaches these handlers.
-        .focusable()
-        .focused(isFocused)
-        .focusEffectDisabled()
-        .onKeyPress(phases: .down, action: handleKeyPress)
         // A tap that is not eaten by a control or a drag clears the selection and
         // claims keyboard focus so j / k / n / v work without a second gesture.
         .onTapGesture {
@@ -72,11 +88,13 @@ struct DiffViewer: View {
     }
 
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        // Space / shift+space: left to the system. Custom paging needs scroll-offset
-        // machinery this round deliberately does not add.
-        if keyPress.key == .space {
-            return .ignored
+        if let intent = readerScrollIntent(for: keyPress) {
+            applyReaderScroll(intent)
+            return .handled
         }
+        // Letter shortcuts only fire while this column is focused. The sidebar filter
+        // and chat composer keep their own FocusState, so typing "join" there never
+        // reaches these handlers.
         guard keyPress.modifiers.isEmpty else { return .ignored }
         switch keyPress.characters {
         case DiffReaderKey.nextFile:
@@ -94,6 +112,43 @@ struct DiffViewer: View {
         default:
             return .ignored
         }
+    }
+
+    private func readerScrollIntent(for keyPress: KeyPress) -> DiffReaderScrollIntent? {
+        let kind: DiffReaderScrollKeyEvent.Kind
+        switch keyPress.key {
+        case .space:
+            kind = .space
+        case .pageDown:
+            kind = .pageDown
+        case .pageUp:
+            kind = .pageUp
+        case .downArrow:
+            kind = .downArrow
+        case .upArrow:
+            kind = .upArrow
+        default:
+            return nil
+        }
+        // Cmd/option/control must not become paging — leave those to the system.
+        let nonShift = keyPress.modifiers.subtracting(.shift)
+        guard nonShift.isEmpty else { return nil }
+        return DiffReaderScrollKeyMapping.intent(
+            for: DiffReaderScrollKeyEvent(
+                kind: kind,
+                shift: keyPress.modifiers.contains(.shift)
+            )
+        )
+    }
+
+    private func applyReaderScroll(_ intent: DiffReaderScrollIntent) {
+        let target = DiffReaderScrollPaging.targetOffset(
+            currentOffset: scrollOffsetY,
+            viewportHeight: scrollViewportHeight,
+            lineHeight: DiffViewerMetric.codeLineHeight,
+            intent: intent
+        )
+        scrollPosition.scrollTo(y: target)
     }
 
     private func performReaderScroll(
@@ -131,6 +186,12 @@ private enum DiffReaderKey {
     static let previousFile = "k"
     static let nextUnreadFile = "n"
     static let toggleViewed = "v"
+}
+
+/// Snapshot of the reader's scroll geometry for `onScrollGeometryChange`.
+private struct DiffReaderVisibleScroll: Equatable {
+    var offsetY: CGFloat
+    var viewportHeight: CGFloat
 }
 
 // MARK: - Metrics

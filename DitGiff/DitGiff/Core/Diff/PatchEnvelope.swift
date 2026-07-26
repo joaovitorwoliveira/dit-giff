@@ -30,6 +30,11 @@ nonisolated struct PatchFileEnvelope: Equatable, Sendable {
     let body: PatchFileBody
     let oldMode: String?
     let newMode: String?
+    /// Exact header lines git printed for this file. For text, everything before the
+    /// first `@@`. For non-text, the whole section — so `index` blob lines, mode
+    /// lines, and `Subproject commit` participate in reading-progress fingerprints
+    /// without field-by-field extraction.
+    let rawHeader: String
 }
 
 /// Named failures while splitting a patch. Copy is English and actionable.
@@ -127,14 +132,16 @@ nonisolated enum PatchEnvelope {
                 )
             }
 
+            let fileBody = body(for: section.lines, modes: entry)
             envelopes.append(
                 PatchFileEnvelope(
                     path: entry.path,
                     oldPath: entry.oldPath,
                     change: entry.change,
-                    body: body(for: section.lines, modes: entry),
+                    body: fileBody,
                     oldMode: displayMode(entry.oldMode),
-                    newMode: displayMode(entry.newMode)
+                    newMode: displayMode(entry.newMode),
+                    rawHeader: rawHeader(for: section.lines, body: fileBody)
                 )
             )
         }
@@ -381,6 +388,21 @@ nonisolated enum PatchEnvelope {
         }
 
         return .noContent
+    }
+
+    /// Text: stop before the first hunk so agent/rawBody stay hunk-only.
+    /// Non-text: keep the whole section — classification already ate any `@@` lines
+    /// (submodule), and the blob/mode/Subproject lines must stay for fingerprints.
+    private static func rawHeader(for section: [String], body: PatchFileBody) -> String {
+        switch body {
+        case .text:
+            if let hunkIndex = section.firstIndex(where: { $0.hasPrefix("@@") }) {
+                return section[..<hunkIndex].joined(separator: "\n")
+            }
+            return section.joined(separator: "\n")
+        case .binary, .submodule, .noContent:
+            return section.joined(separator: "\n")
+        }
     }
 
     private static func isBinaryMarker(_ line: String) -> Bool {

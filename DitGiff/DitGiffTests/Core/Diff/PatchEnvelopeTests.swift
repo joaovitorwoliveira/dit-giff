@@ -97,7 +97,12 @@ nonisolated struct PatchEnvelopeTests {
                 change: .added,
                 body: .noContent,
                 oldMode: nil,
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: """
+                diff --git a/empty.txt b/empty.txt
+                new file mode 100644
+                index 0000000..e69de29
+                """
             ),
         ])
     }
@@ -187,6 +192,9 @@ nonisolated struct PatchEnvelopeTests {
         let files = try PatchEnvelope.parse(unifiedDiff: unified, rawDiff: raw)
         #expect(files.first?.body == .binary)
         #expect(files.first?.change == .added)
+        let header = try #require(files.first?.rawHeader)
+        #expect(header.contains("index 0000000..eaf36c1"))
+        #expect(header.contains("Binary files /dev/null and b/binary.bin differ"))
     }
 
     @Test func parsesSubmoduleByMode() throws {
@@ -267,7 +275,12 @@ nonisolated struct PatchEnvelopeTests {
                 change: .modified,
                 body: .noContent,
                 oldMode: "100644",
-                newMode: "100755"
+                newMode: "100755",
+                rawHeader: """
+                diff --git a/mode.txt b/mode.txt
+                old mode 100644
+                new mode 100755
+                """
             ),
         ])
     }

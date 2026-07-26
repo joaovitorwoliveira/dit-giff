@@ -23,7 +23,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .modified,
                 body: .text(body),
                 oldMode: "100644",
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: "diff --git a/f.txt b/f.txt"
             ),
         ]
 
@@ -37,6 +38,7 @@ nonisolated struct PatchAssemblyTests {
         #expect(file.isBinary == false)
         #expect(file.isSubmodule == false)
         #expect(file.rawBody == body)
+        #expect(file.rawHeader == "diff --git a/f.txt b/f.txt")
     }
 
     @Test func assembleLeavesBinarySubmoduleAndNoContentWithoutHunks() throws {
@@ -47,7 +49,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .added,
                 body: .binary,
                 oldMode: nil,
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: "diff --git a/bin b/bin\nindex 0000000..abc1234\nBinary files /dev/null and b/bin differ"
             ),
             PatchFileEnvelope(
                 path: "vendor",
@@ -55,7 +58,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .added,
                 body: .submodule(oldSHA: nil, newSHA: nil),
                 oldMode: nil,
-                newMode: "160000"
+                newMode: "160000",
+                rawHeader: "diff --git a/vendor b/vendor\nnew file mode 160000"
             ),
             PatchFileEnvelope(
                 path: "empty.txt",
@@ -63,7 +67,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .added,
                 body: .noContent,
                 oldMode: nil,
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: "diff --git a/empty.txt b/empty.txt\nnew file mode 100644"
             ),
             PatchFileEnvelope(
                 path: "mode.txt",
@@ -71,7 +76,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .modified,
                 body: .noContent,
                 oldMode: "100644",
-                newMode: "100755"
+                newMode: "100755",
+                rawHeader: "diff --git a/mode.txt b/mode.txt\nold mode 100644\nnew mode 100755"
             ),
         ]
 
@@ -82,9 +88,11 @@ nonisolated struct PatchAssemblyTests {
         #expect(patch.files[0].hunks.isEmpty)
         #expect(patch.files[0].additions == 0)
         #expect(patch.files[0].rawBody == nil)
+        #expect(patch.files[0].rawHeader.contains("index 0000000..abc1234"))
         #expect(patch.files[1].isSubmodule)
         #expect(patch.files[1].kind == .submodule(oldSHA: nil, newSHA: nil))
         #expect(patch.files[1].rawBody == nil)
+        #expect(patch.files[1].rawHeader.contains("new file mode 160000"))
         #expect(patch.files[2].change == .added)
         #expect(patch.files[2].kind == .noContent)
         #expect(patch.files[2].hunks.isEmpty)
@@ -106,7 +114,8 @@ nonisolated struct PatchAssemblyTests {
                     newSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                 ),
                 oldMode: "160000",
-                newMode: "160000"
+                newMode: "160000",
+                rawHeader: "diff --git a/vendor b/vendor\nindex aaaaaaa..bbbbbbb 160000"
             ),
         ]
 
@@ -133,13 +142,15 @@ nonisolated struct PatchAssemblyTests {
                 change: .modified,
                 body: .text(body),
                 oldMode: "100644",
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: "diff --git a/Exact.swift b/Exact.swift\nindex aaa..bbb 100644"
             ),
         ]
 
         let patch = try Patch.assemble(from: envelopes)
         let file = try #require(patch.files.first)
         #expect(file.rawBody == body)
+        #expect(file.rawHeader.contains("index aaa..bbb"))
     }
 
     @Test func assembleTagsHunkParserErrorsWithFilePath() {
@@ -150,7 +161,8 @@ nonisolated struct PatchAssemblyTests {
                 change: .modified,
                 body: .text("not a hunk header\n"),
                 oldMode: "100644",
-                newMode: "100644"
+                newMode: "100644",
+                rawHeader: "diff --git a/broken.swift b/broken.swift"
             ),
         ]
 

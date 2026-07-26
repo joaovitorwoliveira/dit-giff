@@ -94,8 +94,7 @@ struct DiffView: View {
                         onCommit: commitSidebarWidth
                     )
                 }
-                DiffViewer(model: model, isFocused: $isReaderFocused)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                readerColumn
                 if model.isChatOpen {
                     DiffChatPanel(model: model)
                         .frame(width: DiffLayout.chatWidth, alignment: .top)
@@ -137,6 +136,24 @@ struct DiffView: View {
                 value: model.isSidebarOpen
             )
     }
+
+    /// Progress errors sit above the scrollable reader so they never cover hunks or
+    /// steal the ScrollView's keyboard first-responder role.
+    private var readerColumn: some View {
+        DSVStack(spacing: nil) {
+            if let message = model.readingProgressError {
+                DiffReadingProgressErrorBanner(message: message) {
+                    model.clearReadingProgressError()
+                    isReaderFocused = true
+                }
+                .dsPadding(.horizontal, .s24)
+                .dsPadding(.top, .s12)
+            }
+            DiffViewer(model: model, isFocused: $isReaderFocused)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 
 // MARK: - Load status
@@ -164,6 +181,41 @@ private struct DiffLoadStatusView: View {
         .dsPadding(.all, .s24)
         .dsSurface(palette.surface0)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Reading progress error
+
+/// Same dismissible notice chrome as `WelcomeBannerView`: observational copy from the
+/// model, error text token, surface + border, plain dismiss control that refuses focus.
+private struct DiffReadingProgressErrorBanner: View {
+    @Environment(\.dsPalette) private var palette
+
+    let message: String
+    let dismiss: () -> Void
+
+    var body: some View {
+        DSHStack(alignment: .top, spacing: .s8) {
+            Text(message)
+                .dsText(.label)
+                .foregroundStyle(palette.textError.color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .dsText(.label)
+                    .foregroundStyle(palette.textTertiary.color)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            // Keep j / k / n / v / space on the reader after a click-to-dismiss.
+            .focusable(false)
+            .accessibilityLabel("Dismiss")
+        }
+        .dsPadding(.all, .s12)
+        .dsSurface(palette.surface2, radius: .md)
+        .dsBorder(palette.border, radius: .md)
+        .accessibilityElement(children: .contain)
     }
 }
 

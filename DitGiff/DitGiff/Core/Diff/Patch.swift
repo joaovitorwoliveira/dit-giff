@@ -20,7 +20,11 @@ nonisolated struct PatchFile: Equatable, Sendable {
     let deletions: Int
     /// Exact unified-section bytes this file was parsed from. Kept so the agent can
     /// receive what git produced without reconstructing a patch that might diverge.
+    /// Text only — non-text files leave this nil so Explain stays off.
     let rawBody: String?
+    /// Raw header git printed for this file. Non-text reading fingerprints hash this
+    /// so blob `index` lines invalidate progress when content changes.
+    let rawHeader: String
 
     var isBinary: Bool {
         if case .binary = kind { return true }
@@ -40,7 +44,8 @@ nonisolated struct PatchFile: Equatable, Sendable {
         kind: PatchFileKind,
         additions: Int,
         deletions: Int,
-        rawBody: String? = nil
+        rawBody: String? = nil,
+        rawHeader: String = ""
     ) {
         self.path = path
         self.oldPath = oldPath
@@ -50,6 +55,7 @@ nonisolated struct PatchFile: Equatable, Sendable {
         self.additions = additions
         self.deletions = deletions
         self.rawBody = rawBody
+        self.rawHeader = rawHeader
     }
 
     /// Convenience for call sites that still spell the old binary/submodule flags.
@@ -62,7 +68,8 @@ nonisolated struct PatchFile: Equatable, Sendable {
         isSubmodule: Bool,
         additions: Int,
         deletions: Int,
-        rawBody: String? = nil
+        rawBody: String? = nil,
+        rawHeader: String = ""
     ) {
         let kind: PatchFileKind
         if isBinary {
@@ -83,7 +90,8 @@ nonisolated struct PatchFile: Equatable, Sendable {
             kind: kind,
             additions: additions,
             deletions: deletions,
-            rawBody: rawBody
+            rawBody: rawBody,
+            rawHeader: rawHeader
         )
     }
 }
@@ -123,7 +131,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 kind: .text,
                 additions: counts.additions,
                 deletions: counts.deletions,
-                rawBody: body
+                rawBody: body,
+                rawHeader: envelope.rawHeader
             )
 
         case .binary:
@@ -135,7 +144,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 kind: .binary,
                 additions: 0,
                 deletions: 0,
-                rawBody: nil
+                rawBody: nil,
+                rawHeader: envelope.rawHeader
             )
 
         case let .submodule(oldSHA, newSHA):
@@ -147,7 +157,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 kind: .submodule(oldSHA: oldSHA, newSHA: newSHA),
                 additions: 0,
                 deletions: 0,
-                rawBody: nil
+                rawBody: nil,
+                rawHeader: envelope.rawHeader
             )
 
         case .noContent:
@@ -159,7 +170,8 @@ nonisolated struct Patch: Equatable, Sendable {
                 kind: .noContent,
                 additions: 0,
                 deletions: 0,
-                rawBody: nil
+                rawBody: nil,
+                rawHeader: envelope.rawHeader
             )
         }
     }

@@ -53,6 +53,7 @@ extension DiffModel {
         case .unavailableInReader:
             readerScrollRequest = nil
         }
+        persistReadingProgress()
     }
 
     /// Advances the reader scroll retry sequence after a corrective delay. When the policy

@@ -29,9 +29,12 @@ extension DiffModel {
         return agent != nil && filePatchBodies[file.path] != nil
     }
 
-    /// Whether the hunk's Explain / chat actions have an agent answer to show.
+    /// Whether the hunk's Explain / chat actions can ask the agent now.
     func canExplain(_ hunk: DiffHunk) -> Bool {
-        hunk.explanation != nil
+        if cannedAgent != nil {
+            return hunk.explanation != nil
+        }
+        return agent != nil && hunkPatchBodies[hunk.id] != nil
     }
 
     /// Whether explaining the current selection can produce an agent answer.
@@ -55,8 +58,12 @@ extension DiffModel {
     }
 
     func explain(_ hunk: DiffHunk) {
-        guard let explanation = hunk.explanation else { return }
-        startThread(from: hunk, answering: explanation)
+        if cannedAgent != nil {
+            guard let explanation = hunk.explanation else { return }
+            startThread(from: hunk, answering: explanation)
+            return
+        }
+        enqueueAgentExplanation(for: hunk)
     }
 
     /// The marker on a hunk that carries an analysis note.

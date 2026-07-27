@@ -33,6 +33,8 @@ final class DiffModel {
     /// Per-file unified body from the last loaded `Patch`. Keyed by destination path.
     /// Text only — used by Explain and by reading fingerprints.
     var filePatchBodies: [String: String] = [:]
+    /// Per-hunk unified slice from the last loaded `Patch`. Keyed by `DiffHunk.id`.
+    var hunkPatchBodies: [String: String] = [:]
     /// Per-file raw header from the last loaded `Patch`. Non-text fingerprints only —
     /// kept out of `filePatchBodies` so Explain stays off for binary/submodule/no-content.
     var filePatchHeaders: [String: String] = [:]
@@ -80,7 +82,8 @@ final class DiffModel {
 
     // MARK: - Sidebar → reader navigation
 
-    /// The file last chosen in the change map. Highlight only — not the same as viewed.
+    /// The change-map tree line under the keyboard cursor — a file path, or a
+    /// directory path ending in `/`. Highlight only — not the same as viewed.
     var focusedFilePath: String?
     /// Consumed by the viewer to animate a scroll. `nil` when idle.
     var readerScrollRequest: DiffReaderScrollRequest?
@@ -111,15 +114,15 @@ final class DiffModel {
     var closedDirectories: Set<String> = []
     var usedHunkReplies: Set<String> = []
     var nextMessageID = 0
-    /// Completed file explanations only — a stream without `.finished` never lands here.
-    var completedFileExplanations: [String: String] = [:]
-    /// One thread entry per file path — used to scroll back and to enforce uniqueness.
-    var explanationMessageIDs: [String: Int] = [:]
-    var inFlightExplainPath: String?
+    /// Completed explanations only — a stream without `.finished` never lands here.
+    var completedExplanations: [AgentExplainTarget: String] = [:]
+    /// One thread entry per explain target — used to scroll back and to enforce uniqueness.
+    var explanationMessageIDs: [AgentExplainTarget: Int] = [:]
+    var inFlightExplainTarget: AgentExplainTarget?
     /// At most one waiter. A newer request replaces whoever was waiting.
-    var queuedExplainPath: String?
+    var queuedExplainTarget: AgentExplainTarget?
     var streamingMessageID: Int?
-    var streamingFilePath: String?
+    var streamingExplainTarget: AgentExplainTarget?
     /// Bumped when explains are cancelled so a stale task cannot start the queue.
     var explainGeneration = 0
 

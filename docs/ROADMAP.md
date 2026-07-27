@@ -9,19 +9,6 @@ A ordem importa: cada um destrava o seguinte.
 
 ---
 
-## Slice 6 — Syntax highlighting
-
-Código sem cor cansa. Fica separado porque é grande e independente.
-
-- Colorir por linguagem, com a paleta de syntax que já está no design system. Os valores
-  do modo claro já são Solarized; os do escuro continuam vindo do protótipo v2. Nenhum dos
-  dois está ligado a uma view ainda — hoje o diff pinta tudo com `textPrimary`.
-- As linguagens que eu uso, não todas.
-- Custo controlado: destacar só o que está na tela. A virtualização do Slice 3 já garante
-  que só o viewport é materializado; o highlighting precisa respeitar isso.
-
-**Pronto quando** o diff parece um editor, não um `cat`.
-
 ## Slice 7 — Contexto e prompt (mínimo que prova a tese)
 
 Onde o produto se decide. Não é o chat completo — é o suficiente para eu ver se
@@ -62,6 +49,14 @@ a branch, e o indicador de atividade. O que falta é conversar.
   decidiu não persistir sessão para não poluir o `claude -c` do usuário no próprio
   repositório dele.
 - Selecionar linhas, popover, explicar ou perguntar; o trecho vira chip na mensagem.
+- **O ícone de IA monta a conversa em vez de disparar a pergunta.** Hoje clicar no brilho
+  no cabeçalho já manda o prompt e fica esperando a resposta. Testando outra ferramenta, o
+  caminho inverso funcionou melhor: o clique só abre a thread com o contexto já anexado —
+  o arquivo inteiro, ou o trecho da linha X à linha Y — e me deixa decidir o que fazer com
+  ele. Um punhado de intenções prontas cobre quase todo uso: explicar este código; explicar
+  como este contexto funciona; me fazer algumas perguntas sobre ele; ou escrever a minha
+  própria pergunta. O ganho é controle. Eu vejo o que vai junto antes de gastar a chamada,
+  e a pergunta certa quase nunca é a genérica que o produto escolheria por mim.
 - Avisar ao trocar de modelo no meio da thread. Hoje não faz sentido — cada explicação é
   uma chamada independente e não há contexto a perder. Com histórico, passa a ter.
 
@@ -148,6 +143,22 @@ registrado para eu não redescobrir o mesmo raciocínio daqui a três meses.
   como uma entrada curta, em vez de aparecer só na árvore. E onde eu parei sobrevive a
   fechar o app, por par de repositório e branch, conferindo arquivo por arquivo: só mantém
   o progresso de quem tem o patch idêntico ao da última vez.
+- **Slice 6 — Syntax highlighting.** O diff parece um editor. Lexer próprio, sem
+  dependência nenhuma: um conjunto único de categorias serve todas as linguagens, e por
+  linguagem muda só a tabela de regras. Swift, JavaScript, TypeScript com JSX e TSX, JSON,
+  YAML, Markdown, shell e HTML; extensão desconhecida cai num modo neutro que ainda colore
+  string, número e comentário. Decorator é categoria própria, então `@Injectable` do Nest e
+  `@MainActor` do Swift saem juntos.
+- **Explicar um hunk pela IA.** Adiantado do Slice 8 porque os dois ícones que existiam no
+  cabeçalho do hunk eram casca do Slice 1: os dois chamavam o mesmo método, liam texto de
+  exemplo, e em sessão real ficavam permanentemente desabilitados. Viraram um brilho só,
+  ligado no mesmo caminho do Slice 4 que o brilho do arquivo já usava.
+- **O leitor por teclado, redesenhado.** O cursor deixou de ser um arquivo e virou uma linha
+  da árvore. As setas andam por tudo que está visível — arquivo, pasta, pasta, arquivo — e
+  `Shift` com as setas abre, fecha e pula pasta. `j` e `k` saíram.
+- **Acabamento do leitor.** Um card por arquivo no formato do GitHub, com o cabeçalho colado
+  no corpo e a faixa `@@` como divisória interna. Sidebar maior e mais legível, com hover e
+  cursor de leitura que dá para ver, e visto marcado com checkbox e risco no nome.
 
 ### O que não vale reabrir
 
@@ -186,3 +197,33 @@ Do Slice 4, tudo verificado empiricamente e não por documentação:
   sem evento nenhum.
 - **O protocolo do agente fala em produto, não em transporte.** Tudo que é Claude Code
   vive num adapter só, que é o que mantém a troca por outro CLI barata.
+
+Do Slice 6:
+
+- **Um hunk não é código contíguo, então a lexagem é em dois fluxos.** Contexto mais
+  remoções de um lado, contexto mais adições do outro, cada um com seu próprio estado.
+  Lexar o hunk como um texto só faz comentário de bloco de linha removida vazar e pintar
+  a linha adicionada seguinte. A linha de contexto existe nos dois e usa o resultado do
+  lado novo, porque é o estado atual do arquivo que eu estou tentando entender.
+- **O lexer roda na thread de UI, então todo laço garante progresso.** Uma regra que não
+  consome caractere trava o app inteiro, e teste de exemplo não pega isso: `-1` num JSON
+  passou por 23 testes verdes antes de congelar a tela. O que pega é teste de invariante —
+  termina, spans ordenados, sem sobreposição, dentro dos limites.
+- **Cache é otimização; otimização ausente degrada, nunca derruba.** O cache de render por
+  hunk é opcional de ponta a ponta e tem fallback. A primeira versão trapava quando não
+  estava injetado, e o SwiftUI lê valores de ambiente em momentos que não dá para controlar.
+- **`State(initialValue:)` não é preguiçoso.** Swift avalia o argumento antes de chamar,
+  então o trabalho é pago e descartado a cada `init`. Memoização de verdade precisa de dono
+  fora da struct da view.
+- **Testar a função pura não prova que o evento chega nela.** Um `guard modifiers.isEmpty`
+  no viewer engoliu `Shift` inteiro enquanto a suíte ficava verde, porque os testes
+  chamavam o mapeamento direto. O caminho do viewer virou tipo próprio e é testado junto.
+- **A ordem de exibição é uma só, e é a da árvore.** O leitor percorre os arquivos na mesma
+  sequência em que a árvore os desenha. Duas ordens para a mesma lista fazem a seta parecer
+  aleatória. O `Patch` continua na ordem que o git emitiu; só a exibição foi derivada.
+- **Cabeçalho pinado sai do fluxo, e isso quebra duas coisas diferentes.** Ancorar o scroll
+  no header faz o pin do arquivo anterior cobrir o alvo, e o leitor parece pular para trás:
+  o id vive num sentinela no início do corpo. E `spacing` de `LazyVStack` separa header de
+  corpo dentro da mesma `Section`, rachando o card: o vão entre arquivos é padding no corpo.
+- **O último arquivo precisa de folga embaixo para poder pinar no topo.** Sem conteúdo
+  abaixo dele, não há para onde rolar, e o salto fica pela metade.

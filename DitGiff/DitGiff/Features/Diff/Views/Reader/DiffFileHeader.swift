@@ -17,19 +17,35 @@ struct DiffFileStickyHeader: View {
             collapseButton
             pathLabel
             counters
-            DiffExplainFileButton(
-                isEnabled: model.canExplainFile(file)
-            ) {
-                model.explainFile(file)
+            // Sparkles and Viewed carry unequal internal padding (6 vs 8 horizontal).
+            // A single stack spacing makes the optical gap between counters→sparkles
+            // smaller than sparkles→Viewed; zero inner spacing equalizes both at 14pt.
+            DSHStack(spacing: nil) {
+                DiffExplainFileButton(
+                    isEnabled: model.canExplainFile(file)
+                ) {
+                    model.explainFile(file)
+                }
+                DiffViewedButton(isViewed: isViewed) { model.toggleViewed(file) }
             }
-            DiffViewedButton(isViewed: isViewed) { model.toggleViewed(file) }
         }
         .dsPadding(.leading, .s8)
         .dsPadding(.trailing, .s12)
         .frame(height: DiffViewerMetric.headerHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .dsSurface(palette.surface1, radius: .md)
-        .dsBorder(palette.borderSubtle, radius: .md)
+        // Pinned headers leave the section flow, so the file card cannot be one
+        // outer shape. Top-only corners while open; all four when collapsed alone.
+        .background {
+            DiffFileCardChrome.shape(topRounded: true, bottomRounded: !isOpen)
+                .fill(palette.surface1.color)
+        }
+        .overlay {
+            DiffFileCardChrome.shape(topRounded: true, bottomRounded: !isOpen)
+                .strokeBorder(
+                    palette.borderSubtle.color,
+                    lineWidth: DiffViewerMetric.hairline
+                )
+        }
     }
 
     private var collapseButton: some View {

@@ -88,6 +88,15 @@ nonisolated struct ClaudeCodeDiffAgent: DiffAgent {
     }
 
     static func prompt(for request: AgentExplainRequest) -> String {
+        switch request.scope {
+        case .file:
+            fileExplainPrompt(for: request)
+        case let .hunk(_, location):
+            hunkExplainPrompt(for: request, location: location)
+        }
+    }
+
+    private static func fileExplainPrompt(for request: AgentExplainRequest) -> String {
         """
         File: \(request.filePath)
         Comparing: \(request.baseName)...\(request.compareName)
@@ -100,6 +109,23 @@ nonisolated struct ClaudeCodeDiffAgent: DiffAgent {
         Write one short paragraph on what changed. Then at most three short clues — pick only the ones that matter; do not list everything you notice. Phrase each clue as an observation or a question, never as a verdict. The human decides.
 
         Stay inside this patch. Do not explore the rest of the repository unless the patch alone is not enough to say what changed.
+        """
+    }
+
+    private static func hunkExplainPrompt(for request: AgentExplainRequest, location: String) -> String {
+        """
+        File: \(request.filePath)
+        Hunk: \(location)
+        Comparing: \(request.baseName)...\(request.compareName)
+
+        Patch for this hunk:
+        \(request.patch)
+
+        This is a quick hunk explain — keep the whole reply short enough to read without scrolling.
+
+        Write one short paragraph on what changed in this hunk. Then at most three short clues — pick only the ones that matter; do not list everything you notice. Phrase each clue as an observation or a question, never as a verdict. The human decides.
+
+        Stay inside this hunk's patch. Do not explore the rest of the repository unless this patch alone is not enough to say what changed.
         """
     }
 

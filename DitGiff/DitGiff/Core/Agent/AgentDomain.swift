@@ -57,16 +57,22 @@ nonisolated enum AgentEffort: String, Equatable, Sendable, CaseIterable {
     var cliValue: String { rawValue }
 }
 
+nonisolated enum AgentExplainScope: Equatable, Sendable {
+    case file
+    case hunk(id: String, location: String)
+}
+
 nonisolated struct AgentExplainRequest: Equatable, Sendable {
     let repositoryRoot: URL
     /// Path relative to the repository root, as shown in the diff.
     let filePath: String
-    /// Already-sliced patch for this file only.
+    /// Patch slice for this request — whole file or one hunk, never both.
     let patch: String
     let baseName: String
     let compareName: String
     let model: AgentModel
     let effort: AgentEffort
+    let scope: AgentExplainScope
 
     init(
         repositoryRoot: URL,
@@ -75,7 +81,8 @@ nonisolated struct AgentExplainRequest: Equatable, Sendable {
         baseName: String,
         compareName: String,
         model: AgentModel,
-        effort: AgentEffort
+        effort: AgentEffort,
+        scope: AgentExplainScope = .file
     ) {
         self.repositoryRoot = repositoryRoot
         self.filePath = filePath
@@ -84,5 +91,6 @@ nonisolated struct AgentExplainRequest: Equatable, Sendable {
         self.compareName = compareName
         self.model = model
         self.effort = effort
+        self.scope = scope
     }
 }

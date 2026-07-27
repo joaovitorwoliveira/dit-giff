@@ -28,24 +28,29 @@ enum DiffSidebarMetric {
     static let hairline: CGFloat = 1
 
     static let branchSize: CGFloat = 11
-    static let nameSize: CGFloat = 13
-    static let counterSize: CGFloat = 11
+    static let nameSize: CGFloat = 14
+    static let counterSize: CGFloat = 12
 
     static let progressHeight: CGFloat = 3
     static let progressRadius: CGFloat = 2
 
     static let filterHeight: CGFloat = 26
 
-    static let rowHeight: CGFloat = 32
-    static let chevronHitSize: CGFloat = 14
+    static let rowHeight: CGFloat = 34
+    static let chevronHitSize: CGFloat = 16
     static let counterMinWidth: CGFloat = 32
 
     static let rowIndentBase: CGFloat = 8
-    static let rowIndentPerDepth: CGFloat = 16
+    /// One step wider than before so 14pt names and 18pt icons keep room at depth.
+    static let rowIndentPerDepth: CGFloat = 18
 
     static let folderControlHitSize: CGFloat = 22
     static let folderCheckboxDashHeight: CGFloat = 2
     static let folderCheckboxDashWidth: CGFloat = 8
+
+    /// Trailing column for file and folder viewed marks. Same width at every indent
+    /// depth so the checks share one right edge.
+    static var viewedControlColumnWidth: CGFloat { folderControlHitSize }
 
     static func rowLeadingInset(depth: Int) -> CGFloat {
         rowIndentBase + CGFloat(depth) * rowIndentPerDepth

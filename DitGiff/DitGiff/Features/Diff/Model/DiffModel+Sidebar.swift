@@ -28,15 +28,115 @@ extension DiffModel {
         persistReadingProgress()
     }
 
+    /// Opens every closed ancestor of `filePath` so the focused file has a row to
+    /// scroll to. Used by `n` (explicit unread jump) and progress restore — never by
+    /// ←/→ / Shift+↑↓, which must leave closed folders closed.
+    @discardableResult
+    func ensureAncestorDirectoriesOpen(forFilePath filePath: String) -> Bool {
+        let components = filePath.split(separator: "/")
+        guard components.count > 1 else { return false }
+        var prefix = ""
+        var changed = false
+        for component in components.dropLast() {
+            prefix += "\(component)/"
+            if closedDirectories.remove(prefix) != nil {
+                changed = true
+            }
+        }
+        if changed {
+            persistReadingProgress()
+        }
+        return changed
+    }
+
+    // MARK: - Keyboard folder navigation
+
+    /// Shift+↓ — jump to the next folder **line**. Does not open closed folders and
+    /// does not scroll the reader.
+    func goToNextFolder() {
+        revealFolderKeyboardTarget(
+            DiffKeyboardNavigationResolver.nextFolder(
+                visibleLines: visibleTreeLines,
+                focusedPath: focusedFilePath
+            )
+        )
+    }
+
+    /// Shift+↑ — jump to the previous folder line. Same no-auto-open / no-reader-move.
+    func goToPreviousFolder() {
+        revealFolderKeyboardTarget(
+            DiffKeyboardNavigationResolver.previousFolder(
+                visibleLines: visibleTreeLines,
+                focusedPath: focusedFilePath
+            )
+        )
+    }
+
+    /// Shift+→ — open the folder under the cursor (or the file's parent). Already-open
+    /// and root-level files are silent no-ops.
+    func openFocusedFolder() {
+        guard let directory = folderPathUnderKeyboardCursor() else { return }
+        guard closedDirectories.contains(directory) else { return }
+        closedDirectories.remove(directory)
+        persistReadingProgress()
+    }
+
+    /// Shift+← — close the folder under the cursor (or the file's parent). When closing
+    /// hides the current line, the cursor moves onto the folder itself so it stays on
+    /// a visible row.
+    func closeFocusedFolder() {
+        guard let directory = folderPathUnderKeyboardCursor() else { return }
+        guard !closedDirectories.contains(directory) else { return }
+        closedDirectories.insert(directory)
+        if focusedFilePath != directory {
+            focusedFilePath = directory
+        }
+        persistReadingProgress()
+    }
+
+    /// Directory key for open/close. Cursor on a folder → that folder. Cursor on a
+    /// file → its immediate parent. Nil when there is no cursor or the file is root-level.
+    private func folderPathUnderKeyboardCursor() -> String? {
+        DiffKeyboardNavigationResolver.folderPathForToggle(
+            focusedPath: focusedFilePath,
+            parentDirectoryOfFile: { path in
+                file(atPath: path)?.directory ?? ""
+            }
+        )
+    }
+
+    /// Folder jumps only move the tree cursor — never the reader, never auto-open.
+    private func revealFolderKeyboardTarget(_ navigation: DiffKeyboardNavigation) {
+        switch navigation {
+        case let .moveTo(path):
+            focusTreeLine(path)
+        case .stay:
+            return
+        }
+    }
+
     // MARK: - Sidebar → reader navigation
 
     func isFocusedInSidebar(_ file: DiffFile) -> Bool {
         focusedFilePath == file.path
     }
 
-    /// Sidebar file row click. Marks the file current; scrolls the reader when the file
-    /// has hunks. Does not expand a collapsed file — the sticky header is the target.
-    func revealFileInReader(_ file: DiffFile) {
+    func isFocusedInSidebar(_ directory: DiffTreeDirectory) -> Bool {
+        focusedFilePath == directory.path
+    }
+
+    /// Sidebar file row click / keyboard file jump. Marks the file current; scrolls the
+    /// reader when the file is in `sectionFiles`. Does not expand a collapsed file —
+    /// the section header is still the visual target (via pin) once the body anchor
+    /// lands. `fileScroll: .rapid` replaces any in-flight jump without stacking
+    /// animations — required when ←/→ key-repeat fires many times per second.
+    ///
+    /// Does **not** open closed ancestor folders — callers that need that (`n`,
+    /// progress restore) call `ensureAncestorDirectoriesOpen` themselves.
+    func revealFileInReader(
+        _ file: DiffFile,
+        fileScroll: DiffReaderFileScrollStyle = .settled
+    ) {
         focusedFilePath = file.path
         let sectionPaths = Set(sectionFiles.map(\.path))
         switch DiffFileNavigationResolver.resolve(
@@ -44,11 +144,12 @@ extension DiffModel {
             sectionFilePaths: sectionPaths
         ) {
         case let .scrollToHeader(path):
+            // Fresh nonce cancels any pending corrective Task from a prior jump.
             readerScrollNonce &+= 1
             readerScrollRequest = DiffReaderScrollRequest(
                 path: path,
                 nonce: readerScrollNonce,
-                attempt: DiffReaderScrollRetry.animatedAttempt
+                attempt: fileScroll.initialAttempt
             )
         case .unavailableInReader:
             readerScrollRequest = nil

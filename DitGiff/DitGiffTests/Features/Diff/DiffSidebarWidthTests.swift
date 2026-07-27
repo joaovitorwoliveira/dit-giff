@@ -147,4 +147,14 @@ struct DiffSidebarWidthTests {
         DiffSidebarWidth.write(preview, to: defaults)
         #expect(DiffSidebarWidth.read(from: defaults) == DiffLayout.maximumSidebarWidth)
     }
+
+    // MARK: - Viewed control column
+
+    @Test func viewedControlColumnMatchesFolderHitSizeForTrailingAlignment() {
+        #expect(
+            DiffSidebarMetric.viewedControlColumnWidth
+                == DiffSidebarMetric.folderControlHitSize
+        )
+        #expect(DiffSidebarMetric.viewedControlColumnWidth > DiffIconMetric.fileCheckboxSize)
+    }
 }

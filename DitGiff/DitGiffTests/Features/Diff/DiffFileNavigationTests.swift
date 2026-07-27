@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 
 @testable import DitGiff
@@ -43,6 +44,31 @@ struct DiffFileNavigationTests {
         #expect(DiffFileNavigationResolver.expandsCollapsedFileOnNavigate == false)
     }
 
+    @Test func fileJumpAnchorIsAlwaysHeaderTop() {
+        #expect(DiffFileNavigationResolver.fileJumpAnchor == .headerTop)
+    }
+
+    @Test func bottomScrollSlackPrefersViewportHeightSoLastFilesCanPinToTop() {
+        #expect(
+            DiffReaderFileJumpLayout.bottomScrollSlack(
+                viewportHeight: 800,
+                minimumPadding: 48
+            ) == 800
+        )
+        #expect(
+            DiffReaderFileJumpLayout.bottomScrollSlack(
+                viewportHeight: 0,
+                minimumPadding: 48
+            ) == 48
+        )
+        #expect(
+            DiffReaderFileJumpLayout.bottomScrollSlack(
+                viewportHeight: 20,
+                minimumPadding: 48
+            ) == 48
+        )
+    }
+
     // MARK: - Scroll retry policy
 
     @Test func scrollRetryAnimatesOnlyTheFirstAttempt() {
@@ -51,10 +77,22 @@ struct DiffFileNavigationTests {
         #expect(DiffReaderScrollRetry.isAnimated(attempt: 2) == false)
     }
 
+    @Test func scrollRetryCorrectivesAreNotAnimated() {
+        #expect(DiffReaderScrollRetry.isAnimated(attempt: DiffReaderScrollRetry.firstCorrectiveAttempt) == false)
+        #expect(DiffReaderScrollRetry.isAnimated(attempt: DiffReaderScrollRetry.finalAttempt) == false)
+    }
+
     @Test func scrollRetryDelaysEndAfterTheSecondCorrectivePass() {
         #expect(DiffReaderScrollRetry.delayAfter(attempt: 0) != nil)
         #expect(DiffReaderScrollRetry.delayAfter(attempt: 1) != nil)
         #expect(DiffReaderScrollRetry.delayAfter(attempt: 2) == nil)
+    }
+
+    @Test func fileScrollStyleMapsSettledToAnimatedAndRapidToFinal() {
+        #expect(DiffReaderFileScrollStyle.settled.initialAttempt == DiffReaderScrollRetry.animatedAttempt)
+        #expect(DiffReaderFileScrollStyle.rapid.initialAttempt == DiffReaderScrollRetry.finalAttempt)
+        #expect(DiffReaderFileScrollStyle.forKeyRepeat(false) == .settled)
+        #expect(DiffReaderFileScrollStyle.forKeyRepeat(true) == .rapid)
     }
 
     // MARK: - Model

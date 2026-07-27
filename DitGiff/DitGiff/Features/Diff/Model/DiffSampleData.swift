@@ -25,22 +25,6 @@ nonisolated enum DiffSampleData {
         "Tests/BillingTests/AnnualBillingTests.swift",
     ]
 
-    /// The viewer's own order — deliberately not the sidebar's. Text files with
-    /// hunks, then the short-entry cases the reader now shows.
-    static let sectionPaths = [
-        "Sources/Billing/BillingGuard.swift",
-        "Sources/Billing/PlanResolver.swift",
-        "Sources/Billing/InvoiceScheduler.swift",
-        "Sources/Billing/ProrationCalculator.swift",
-        "Sources/API/SubscriptionHandler.swift",
-        "Sources/Models/Subscription.swift",
-        "Sources/HTTP/APIClient.swift",
-        "Tests/BillingTests/AnnualBillingTests.swift",
-        "Sources/Billing/BillingConfig.swift",
-        "Tests/__Snapshots__/InvoiceView@2x.png",
-        "Tests/__Snapshots__/PlanPicker@2x.png",
-    ]
-
     static let files: [DiffFile] = fileRows.map { row in
         DiffFile(
             path: row.path,
@@ -52,12 +36,29 @@ nonisolated enum DiffSampleData {
         )
     }
 
-    static let sectionFiles: [DiffFile] = sectionPaths.map { path in
-        guard let file = files.first(where: { $0.path == path }) else {
-            preconditionFailure("Sample data puts \(path) in the viewer but not in the file list.")
-        }
-        return file
-    }
+    /// Membership of the sample reader — a slice of the larger sidebar list, not every
+    /// `belongsInReader` path. Order is derived from the tree (see `sectionFiles`).
+    private static let sectionPathMembership: Set<String> = [
+        "Sources/API/SubscriptionHandler.swift",
+        "Sources/Billing/BillingConfig.swift",
+        "Sources/Billing/BillingGuard.swift",
+        "Sources/Billing/InvoiceScheduler.swift",
+        "Sources/Billing/PlanResolver.swift",
+        "Sources/Billing/ProrationCalculator.swift",
+        "Sources/HTTP/APIClient.swift",
+        "Sources/Models/Subscription.swift",
+        "Tests/BillingTests/AnnualBillingTests.swift",
+        "Tests/__Snapshots__/InvoiceView@2x.png",
+        "Tests/__Snapshots__/PlanPicker@2x.png",
+    ]
+
+    /// Same paths as before, ordered like the sidebar tree (depth-first, directories
+    /// before loose files) so ←/→ track the map the user reads.
+    static let sectionFiles: [DiffFile] = DiffReaderDisplayOrder.filesInTreeOrder(
+        from: DiffTree.build(files: files)
+    ).filter { sectionPathMembership.contains($0.path) }
+
+    static var sectionPaths: [String] { sectionFiles.map(\.path) }
 
     static func hunk(withID id: String) -> DiffHunk {
         guard let hunk = hunks.first(where: { $0.id == id }) else {

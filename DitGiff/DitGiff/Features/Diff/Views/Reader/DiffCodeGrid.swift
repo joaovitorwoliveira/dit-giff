@@ -20,6 +20,8 @@ private enum DiffCodeGridSpace {
 }
 
 struct DiffCodeGrid: View {
+    @Environment(\.diffHunkRenderCache) private var renderCache
+
     let hunk: DiffHunk
     let selectedRows: ClosedRange<Int>?
     @Binding var isSelectingLines: Bool
@@ -28,29 +30,18 @@ struct DiffCodeGrid: View {
     @State private var dragOrigin: Int?
     @State private var measuredFrames: [Int: DiffCodeRowFrame] = [:]
 
-    /// Built once when the grid value is created — not on every `body` read.
-    private let rowIDs: [DiffLineIdentity.RowID]
-
-    init(
-        hunk: DiffHunk,
-        selectedRows: ClosedRange<Int>?,
-        isSelectingLines: Binding<Bool>,
-        selectLines: @escaping (_ from: Int, _ through: Int) -> Void
-    ) {
-        self.hunk = hunk
-        self.selectedRows = selectedRows
-        self._isSelectingLines = isSelectingLines
-        self.selectLines = selectLines
-        self.rowIDs = DiffLineIdentity.rowIDs(hunkID: hunk.id, lineCount: hunk.lines.count)
-    }
-
     var body: some View {
+        // Lookup stays in body (not init) so struct recreation does not re-lex. When
+        // DiffViewer injects the cache, memoization applies; without it we compute directly.
+        let syntaxSpans = resolvedSyntaxSpans
+        let rowIDs = resolvedRowIDs
         // Lazy at the line level: materialising every row of a large hunk is what
         // froze scrolling when only the file stack was lazy.
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rowIDs) { rowID in
                 DiffCodeLineRow(
                     line: hunk.lines[rowID.rowIndex],
+                    syntaxSpans: syntaxSpans[rowID.rowIndex],
                     rowIndex: rowID.rowIndex,
                     isSelected: selectedRows?.contains(rowID.rowIndex) ?? false
                 )
@@ -62,6 +53,20 @@ struct DiffCodeGrid: View {
         .highPriorityGesture(selectionDrag)
         .dsPadding(.vertical, .s4)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var resolvedSyntaxSpans: [[SyntaxSpan]] {
+        if let renderCache {
+            return renderCache.syntaxSpans(for: hunk)
+        }
+        return DiffSyntaxAdapter.syntaxSpans(for: hunk)
+    }
+
+    private var resolvedRowIDs: [DiffLineIdentity.RowID] {
+        if let renderCache {
+            return renderCache.rowIDs(for: hunk)
+        }
+        return DiffLineIdentity.rowIDs(hunkID: hunk.id, lineCount: hunk.lines.count)
     }
 
     private var selectionDrag: some Gesture {
@@ -94,6 +99,7 @@ private struct DiffCodeLineRow: View {
     @Environment(\.dsPalette) private var palette
 
     let line: DiffLine
+    let syntaxSpans: [SyntaxSpan]
     let rowIndex: Int
     let isSelected: Bool
 
@@ -156,8 +162,8 @@ private struct DiffCodeLineRow: View {
             .dsPadding(.trailing, .s8)
     }
 
-    /// One `Text` for the whole line. Highlighted segments become attributed runs with
-    /// the same foreground and word-fill colours the per-segment `Text`s used before.
+    /// One `Text` for the whole line. Base colour comes from the diff line kind; syntax
+    /// spans override foreground only so word-diff backgrounds from segments stay put.
     private var attributedCode: AttributedString {
         var result = AttributedString()
         let foreground = codeColor.color
@@ -169,7 +175,52 @@ private struct DiffCodeLineRow: View {
             }
             result += run
         }
+        applySyntaxSpans(to: &result)
         return result
+    }
+
+    private func applySyntaxSpans(to result: inout AttributedString) {
+        let lineLength = line.text.count
+        let dimSyntax = line.kind == .context
+
+        for span in syntaxSpans {
+            guard span.length > 0,
+                  span.start >= 0,
+                  span.start + span.length <= lineLength,
+                  let range = characterRange(in: result, start: span.start, length: span.length)
+            else { continue }
+
+            result[range].foregroundColor = syntaxColor(for: span.kind, dimmed: dimSyntax)
+        }
+    }
+
+    private func characterRange(
+        in string: AttributedString,
+        start: Int,
+        length: Int
+    ) -> Range<AttributedString.Index>? {
+        guard start >= 0, length > 0 else { return nil }
+        let end = start + length
+        guard end <= string.characters.count else { return nil }
+
+        let startIndex = string.index(string.startIndex, offsetByCharacters: start)
+        let endIndex = string.index(startIndex, offsetByCharacters: length)
+        return startIndex..<endIndex
+    }
+
+    private func syntaxColor(for kind: SyntaxTokenKind, dimmed: Bool) -> Color {
+        let base: DSColorValue
+        switch kind {
+        case .keyword: base = palette.syntax.keyword
+        case .type: base = palette.syntax.type
+        case .string: base = palette.syntax.string
+        case .number: base = palette.syntax.number
+        case .comment: base = palette.syntax.comment
+        case .function, .decorator: base = palette.syntax.function
+        case .punctuation: base = palette.syntax.punctuation
+        }
+        let value = dimmed ? base.withOpacity(DSOpacity.syntaxContext) : base
+        return value.color
     }
 
     private var rowBackground: DSColorValue? {

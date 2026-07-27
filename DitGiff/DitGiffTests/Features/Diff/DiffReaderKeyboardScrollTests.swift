@@ -46,7 +46,7 @@ struct DiffReaderKeyboardScrollTests {
         )
     }
 
-    @Test func arrowsStepOneLineWithoutShift() {
+    @Test func arrowsMapToLineStepsWithoutShift() {
         #expect(
             DiffReaderScrollKeyMapping.intent(
                 for: DiffReaderScrollKeyEvent(kind: .downArrow, shift: false)
@@ -68,6 +68,32 @@ struct DiffReaderKeyboardScrollTests {
         #expect(
             DiffReaderScrollKeyMapping.intent(
                 for: DiffReaderScrollKeyEvent(kind: .upArrow, shift: true)
+            ) == nil
+        )
+    }
+
+    // MARK: - Letter shortcuts
+
+    @Test func nAndVStillMapToLetterActions() {
+        #expect(
+            DiffReaderLetterKeyMapping.action(for: DiffReaderLetterKey.nextUnreadFile)
+                == .nextUnreadFile
+        )
+        #expect(
+            DiffReaderLetterKeyMapping.action(for: DiffReaderLetterKey.toggleViewed)
+                == .toggleViewed
+        )
+    }
+
+    @Test func jkProduceNoReaderIntent() {
+        #expect(
+            DiffReaderKeyIntentMapping.intent(
+                for: DiffReaderKeyEvent(key: .character("j"), modifiers: .init())
+            ) == nil
+        )
+        #expect(
+            DiffReaderKeyIntentMapping.intent(
+                for: DiffReaderKeyEvent(key: .character("k"), modifiers: .init())
             ) == nil
         )
     }
@@ -94,22 +120,49 @@ struct DiffReaderKeyboardScrollTests {
         #expect(target == 0)
     }
 
-    @Test func lineStepsUseLineHeight() {
+    @Test func lineStepsAdvanceByFiveLineHeightsOnSinglePress() {
+        let lineHeight: CGFloat = 20.15
+        #expect(DiffReaderScrollPaging.arrowLineStepCount == 5)
+        #expect(DiffReaderScrollPaging.lineStepCount(isRepeat: false) == 5)
         #expect(
             DiffReaderScrollPaging.targetOffset(
-                currentOffset: 100,
+                currentOffset: 200,
                 viewportHeight: 400,
-                lineHeight: 20.15,
+                lineHeight: lineHeight,
                 intent: .lineDown
-            ) == 120.15
+            ) == 200 + lineHeight * 5
         )
         #expect(
             DiffReaderScrollPaging.targetOffset(
-                currentOffset: 100,
+                currentOffset: 200,
                 viewportHeight: 400,
-                lineHeight: 20.15,
+                lineHeight: lineHeight,
                 intent: .lineUp
-            ) == 79.85
+            ) == 200 - lineHeight * 5
+        )
+    }
+
+    @Test func lineStepsAdvanceByThreeLineHeightsOnRepeat() {
+        let lineHeight: CGFloat = 20.15
+        #expect(DiffReaderScrollPaging.arrowLineRepeatStepCount == 3)
+        #expect(DiffReaderScrollPaging.lineStepCount(isRepeat: true) == 3)
+        #expect(
+            DiffReaderScrollPaging.targetOffset(
+                currentOffset: 200,
+                viewportHeight: 400,
+                lineHeight: lineHeight,
+                intent: .lineDown,
+                isRepeat: true
+            ) == 200 + lineHeight * 3
+        )
+        #expect(
+            DiffReaderScrollPaging.targetOffset(
+                currentOffset: 200,
+                viewportHeight: 400,
+                lineHeight: lineHeight,
+                intent: .lineUp,
+                isRepeat: true
+            ) == 200 - lineHeight * 3
         )
     }
 }

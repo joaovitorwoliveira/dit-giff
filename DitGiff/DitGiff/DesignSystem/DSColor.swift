@@ -72,6 +72,10 @@ struct DSPalette: Sendable {
     let surface1: DSColorValue
     let surface2: DSColorValue
     let surface3: DSColorValue
+    /// Row under the mouse — stronger than `surface3` so hover is obvious on `surface1`.
+    let surfaceHover: DSColorValue
+    /// Row under the keyboard reading cursor — stronger than hover.
+    let surfaceSelected: DSColorValue
     let borderSubtle: DSColorValue
     let border: DSColorValue
     let textPrimary: DSColorValue
@@ -108,6 +112,9 @@ struct DSPalette: Sendable {
         surface1: DSColorValue(hex: 0x0F1113),
         surface2: DSColorValue(hex: 0x14161A),
         surface3: DSColorValue(hex: 0x1B1E23),
+        // ~3× the old surface3-vs-surface1 lift so hover reads at a glance.
+        surfaceHover: DSColorValue(hex: 0x2E343C),
+        surfaceSelected: DSColorValue(hex: 0x3A424C),
         borderSubtle: DSColorValue(hex: 0x1F2227),
         border: DSColorValue(hex: 0x2B2F36),
         textPrimary: DSColorValue(hex: 0xE7E9EC),
@@ -136,6 +143,9 @@ struct DSPalette: Sendable {
         surface1: DSColorValue(hex: 0xF5EFDC),
         surface2: DSColorValue(hex: 0xFAF4E1),
         surface3: DSColorValue(hex: 0xEEE8D5),
+        // Darker Solarized cream steps — same family as base2 / border, ~3× the old lift.
+        surfaceHover: DSColorValue(hex: 0xDDD6BE),
+        surfaceSelected: DSColorValue(hex: 0xD0C8AE),
         borderSubtle: DSColorValue(hex: 0xE3DCC6),
         border: DSColorValue(hex: 0xCFC7AE),
         textPrimary: DSColorValue(hex: 0x586E75),

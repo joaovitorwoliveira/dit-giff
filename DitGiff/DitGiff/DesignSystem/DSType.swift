@@ -68,4 +68,6 @@ enum DSTextStyle: CaseIterable {
 
 enum DSOpacity {
     static let read: Double = 0.45
+    /// Context lines keep syntax colour but stay visually behind additions and removals.
+    static let syntaxContext: Double = 0.8
 }

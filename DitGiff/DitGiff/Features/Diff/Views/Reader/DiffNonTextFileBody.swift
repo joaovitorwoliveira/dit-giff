@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Short reader entry for binary, submodule, and no-content files — descriptive,
-/// never a verdict. Shares the same sticky header / collapse / viewed chrome as text.
+/// never a verdict. Content only: outer card chrome is applied by DiffFileBody,
+/// same path as text hunks.
 struct DiffNonTextFileBody: View {
     @Environment(\.dsPalette) private var palette
 
@@ -20,7 +21,5 @@ struct DiffNonTextFileBody: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsPadding(.all, .s16)
-        .dsSurface(palette.surface1, radius: .md)
-        .dsBorder(palette.borderSubtle, radius: .md)
     }
 }

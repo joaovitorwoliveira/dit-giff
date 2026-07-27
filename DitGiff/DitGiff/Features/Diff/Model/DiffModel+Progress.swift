@@ -99,9 +99,16 @@ extension DiffModel {
         refreshViewedDirectoryStates()
         refreshReadProgress()
 
-        guard let path = progress.focusedFilePath, let file = file(atPath: path) else {
+        guard let path = progress.focusedFilePath else { return }
+        // Directory focus does not survive fingerprint reconcile today; if it did,
+        // restore focus without scrolling the reader.
+        if DiffTreeLinePath.isDirectory(path) {
+            focusedFilePath = path
             return
         }
+        guard let file = file(atPath: path) else { return }
+        // Restore is an explicit "put me back" — open closed ancestors so the row exists.
+        ensureAncestorDirectoriesOpen(forFilePath: path)
         revealFileInReader(file)
     }
 

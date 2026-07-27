@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - File body
 
 struct DiffFileBody: View {
+    @Environment(\.dsPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let file: DiffFile
@@ -19,20 +20,11 @@ struct DiffFileBody: View {
             if !isCollapsed {
                 switch file.body {
                 case .text:
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(file.hunks) { hunk in
-                            DiffHunkBlock(
-                                hunk: hunk,
-                                model: model,
-                                selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
-                                showsSelectionPopover: selectedHunkID == hunk.id
-                                    && model.canPresentSelectionPopover,
-                                isSelectingLines: $isSelectingLines
-                            )
-                        }
-                    }
+                    textBody
+                        .diffFileCardBodyChrome(palette: palette)
                 case .binary, .submodule, .noContent:
                     DiffNonTextFileBody(file: file)
+                        .diffFileCardBodyChrome(palette: palette)
                 }
             }
         }
@@ -44,16 +36,37 @@ struct DiffFileBody: View {
             value: isCollapsed
         )
     }
+
+    private var textBody: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(file.hunks.enumerated()), id: \.element.id) { index, hunk in
+                DiffHunkBlock(
+                    hunk: hunk,
+                    model: model,
+                    isFirst: index == 0,
+                    isLast: index == file.hunks.count - 1,
+                    selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
+                    showsSelectionPopover: selectedHunkID == hunk.id
+                        && model.canPresentSelectionPopover,
+                    isSelectingLines: $isSelectingLines
+                )
+            }
+        }
+    }
 }
 
 // MARK: - Hunk
 
 private struct DiffHunkBlock: View {
-    @Environment(\.dsPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let hunk: DiffHunk
     let model: DiffModel
+    /// First hunk sits flush under the sticky file header; later ones draw a top rule.
+    let isFirst: Bool
+    /// Last hunk clips its content to the card's bottom corners so edge-to-edge line
+    /// fills do not square past the chrome. The selection popover stays outside that clip.
+    let isLast: Bool
     /// Rows selected in this hunk, or `nil` when the selection is elsewhere.
     let selectedRows: ClosedRange<Int>?
     let showsSelectionPopover: Bool
@@ -64,7 +77,7 @@ private struct DiffHunkBlock: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 0) {
-                DiffHunkHeader(hunk: hunk, model: model)
+                DiffHunkHeader(hunk: hunk, model: model, showsTopDivider: !isFirst)
                 // Hover lives on the header only (inside DiffHunkHeader). Scrolling the
                 // mouse across code lines must not thrash hunk chrome.
                 DiffCodeGrid(
@@ -77,9 +90,7 @@ private struct DiffHunkBlock: View {
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .dsSurface(palette.surface1, radius: .md)
-            .dsBorder(palette.borderSubtle, radius: .md)
-            .dsClip(.md)
+            .modifier(DiffHunkBottomCornerClip(isLast: isLast))
 
             if hunk.note != nil {
                 DiffHunkNoteMarker { model.openNote(hunk) }
@@ -92,13 +103,31 @@ private struct DiffHunkBlock: View {
         )
         .overlay(alignment: .top) {
             // No agent ⇒ every popover action is dead. Prefer no popover over a corpse.
+            // Lives outside DiffHunkBottomCornerClip so the popover can float above the
+            // first lines without being cut by the card body.
             if showsSelectionPopover {
                 DiffSelectionPopover(model: model)
                     .alignmentGuide(.top) { $0[.bottom] + DSSpace.s8.points }
                     .zIndex(1)
             }
         }
-        .dsPadding(.top, .s8)
+    }
+}
+
+/// Clips only the last hunk's header+grid to the file card's bottom radii. Applied to
+/// content, never to the selection-popover overlay.
+private struct DiffHunkBottomCornerClip: ViewModifier {
+    let isLast: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isLast {
+            content.clipShape(
+                DiffFileCardChrome.shape(topRounded: false, bottomRounded: true)
+            )
+        } else {
+            content
+        }
     }
 }
 
@@ -137,6 +166,7 @@ private struct DiffHunkHeader: View {
 
     let hunk: DiffHunk
     let model: DiffModel
+    let showsTopDivider: Bool
 
     var body: some View {
         DSHStack(spacing: .s8) {
@@ -145,14 +175,21 @@ private struct DiffHunkHeader: View {
                 .foregroundStyle(palette.textTertiary.color)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            DiffHunkActions(hunk: hunk, model: model)
-                .opacity(isHovering ? 1 : 0)
-                .allowsHitTesting(isHovering)
+            DiffHunkActions(hunk: hunk, model: model, isHovering: isHovering)
         }
         .dsPadding(.leading, .s12)
         .dsPadding(.trailing, .s8)
         .frame(height: DiffViewerMetric.hunkHeaderHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // surface2 so @@ reads as an internal divider, not another code row.
+        .dsSurface(palette.surface2)
+        .overlay(alignment: .top) {
+            if showsTopDivider {
+                Rectangle()
+                    .fill(palette.borderSubtle.color)
+                    .frame(height: DiffViewerMetric.hairline)
+            }
+        }
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(palette.borderSubtle.color)
@@ -166,58 +203,53 @@ private struct DiffHunkHeader: View {
 private struct DiffHunkActions: View {
     let hunk: DiffHunk
     let model: DiffModel
+    let isHovering: Bool
 
     private var canExplain: Bool { model.canExplain(hunk) }
+    private var isRead: Bool { model.isRead(hunk) }
 
     var body: some View {
-        DSHStack(spacing: .s4) {
-            DiffHunkIconButton(
-                accessibilityLabel: "Explain this hunk",
-                isEnabled: canExplain
-            ) {
+        DSHStack(spacing: nil) {
+            // Keep sparkles in the layout so Viewed does not shift when hover toggles.
+            DiffHunkExplainButton(isEnabled: canExplain) {
                 model.explain(hunk)
-            } label: {
-                DiffHunkExplainIcon()
             }
-            DiffHunkIconButton(
-                accessibilityLabel: "Chat about this hunk",
-                isEnabled: canExplain
-            ) {
-                // Same entry as explain until the chat panel grows its own verb.
-                model.explain(hunk)
-            } label: {
-                DiffHunkChatIcon()
-            }
-            DiffHunkReadButton(isRead: model.isRead(hunk)) {
+            .opacity(isHovering ? 1 : 0)
+            .allowsHitTesting(isHovering)
+            DiffHunkViewedButton(isRead: isRead) {
                 model.toggleRead(hunk)
             }
         }
     }
 }
 
-private struct DiffHunkIconButton<Label: View>: View {
+private struct DiffHunkExplainButton: View {
     @Environment(\.dsPalette) private var palette
 
-    let accessibilityLabel: String
-    var isEnabled: Bool = true
+    let isEnabled: Bool
     let action: () -> Void
-    @ViewBuilder let label: () -> Label
 
     var body: some View {
         Button(action: action) {
-            label()
+            Image(systemName: "sparkles")
+                .font(.system(size: DiffViewerMetric.explainSparklesSize))
                 .foregroundStyle(palette.textTertiary.color)
-                .padding(DiffViewerMetric.hunkActionPadding)
+                .frame(
+                    width: DiffIconMetric.explainFileSize,
+                    height: DiffIconMetric.explainFileSize
+                )
+                .padding(DiffViewerMetric.iconButtonPadding)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointerStyle(.link)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : DiffViewerMetric.disabledOpacity)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel("Explain this hunk")
     }
 }
 
-private struct DiffHunkReadButton: View {
+private struct DiffHunkViewedButton: View {
     @Environment(\.dsPalette) private var palette
 
     let isRead: Bool
@@ -225,15 +257,21 @@ private struct DiffHunkReadButton: View {
 
     var body: some View {
         Button(action: action) {
-            DiffCheckboxIcon(
-                isOn: isRead,
-                size: .hunk,
-                checkColor: palette.surface1
-            )
+            HStack(spacing: DiffViewerMetric.viewedCheckboxGap) {
+                DiffCheckboxIcon(
+                    isOn: isRead,
+                    size: .file,
+                    checkColor: palette.surface1
+                )
+                Text("Viewed")
+                    .font(DSTextStyle.label.font(fixedSize: DiffViewerMetric.viewedLabelSize))
+                    .lineLimit(1)
+            }
             .foregroundStyle(
                 isRead ? palette.textPrimary.color : palette.textTertiary.color
             )
-            .padding(DiffViewerMetric.hunkActionPadding)
+            .padding(.vertical, DiffViewerMetric.viewedVerticalPadding)
+            .dsPadding(.horizontal, .s8)
             .background {
                 RoundedRectangle(cornerRadius: DSRadius.sm.points, style: .continuous)
                     .fill(isRead ? palette.surface3.color : Color.clear)
@@ -241,7 +279,8 @@ private struct DiffHunkReadButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isRead ? "Mark hunk as unread" : "Mark hunk as read")
+        .pointerStyle(.link)
+        .accessibilityLabel(isRead ? "Mark hunk as not viewed" : "Mark hunk as viewed")
         .accessibilityAddTraits(isRead ? .isSelected : [])
     }
 }

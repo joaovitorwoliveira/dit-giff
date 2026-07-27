@@ -37,22 +37,33 @@ struct DiffChevronIcon: View {
 struct DiffFolderIcon: View {
     var body: some View {
         DiffFolderShape()
-            .fill()
-            .opacity(DiffIconMetric.folderOpacity)
+            .stroke(
+                style: StrokeStyle(
+                    lineWidth: DiffIconMetric.folderBodyStroke,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
             .frame(width: DiffIconMetric.folderSize, height: DiffIconMetric.folderSize)
     }
 }
 
 /// Document mark with the status symbol inside. One view, four statuses — the color
-/// comes from the caller's `foregroundStyle`.
+/// comes from the caller's `foregroundStyle`. Outline + glyph are both strokes so the
+/// status color reads as a line drawing, not a filled chip.
 struct DiffDocumentStatusIcon: View {
     let status: DiffFileStatus
 
     var body: some View {
         ZStack {
             DiffDocumentBodyShape()
-                .fill()
-                .opacity(DiffIconMetric.documentBodyOpacity)
+                .stroke(
+                    style: StrokeStyle(
+                        lineWidth: DiffIconMetric.documentBodyStroke,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
             DiffDocumentStatusSymbolShape(status: status)
                 .stroke(
                     style: StrokeStyle(
@@ -92,19 +103,16 @@ struct DiffExplainFileIcon: View {
 struct DiffCheckboxIcon: View {
     enum Size {
         case file
-        case hunk
 
         var points: CGFloat {
             switch self {
             case .file: DiffIconMetric.fileCheckboxSize
-            case .hunk: DiffIconMetric.hunkCheckboxSize
             }
         }
 
         var checkStroke: CGFloat {
             switch self {
             case .file: DiffIconMetric.fileCheckboxCheckStroke
-            case .hunk: DiffIconMetric.hunkCheckboxCheckStroke
             }
         }
     }
@@ -133,40 +141,6 @@ struct DiffCheckboxIcon: View {
             }
         }
         .frame(width: size.points, height: size.points)
-    }
-}
-
-struct DiffHunkExplainIcon: View {
-    var body: some View {
-        DiffHunkExplainShape()
-            .stroke(
-                style: StrokeStyle(
-                    lineWidth: DiffIconMetric.hunkExplainStroke,
-                    lineCap: .round,
-                    lineJoin: .round
-                )
-            )
-            .frame(
-                width: DiffIconMetric.hunkActionSize,
-                height: DiffIconMetric.hunkActionSize
-            )
-    }
-}
-
-struct DiffHunkChatIcon: View {
-    var body: some View {
-        DiffHunkChatShape()
-            .stroke(
-                style: StrokeStyle(
-                    lineWidth: DiffIconMetric.hunkChatStroke,
-                    lineCap: .round,
-                    lineJoin: .round
-                )
-            )
-            .frame(
-                width: DiffIconMetric.hunkActionSize,
-                height: DiffIconMetric.hunkActionSize
-            )
     }
 }
 
@@ -247,8 +221,6 @@ struct DiffLocationDocIcon: View {
         DiffExplainFileIcon()
         DiffCheckboxIcon(isOn: false, size: .file, checkColor: DSPalette.dark.surface1)
         DiffCheckboxIcon(isOn: true, size: .file, checkColor: DSPalette.dark.surface1)
-        DiffHunkExplainIcon()
-        DiffHunkChatIcon()
         DiffExplainSelectionIcon()
         DiffSendArrowIcon()
         DiffCloseIcon()

@@ -13,26 +13,22 @@ enum DiffIconMetric {
     static let backArrowSize: CGFloat = 14
     static let themeSize: CGFloat = 15
 
-    static let chevronSize: CGFloat = 12
+    static let chevronSize: CGFloat = 14
     static let chevronStroke: CGFloat = 1.5
-    static let folderSize: CGFloat = 17
-    static let folderOpacity: Double = 0.9
-    static let documentStatusSize: CGFloat = 17
+    static let folderSize: CGFloat = 18
+    /// Folder outline — matches `documentBodyStroke` so folder and file weigh the same in the tree.
+    static let folderBodyStroke: CGFloat = 1.5
+    static let documentStatusSize: CGFloat = 18
+    /// Outer document outline — thicker than the inner status glyph so the file edge reads first.
+    static let documentBodyStroke: CGFloat = 1.5
     static let documentStatusStroke: CGFloat = 1.25
-    static let documentBodyOpacity: Double = 0.16
 
     static let explainFileSize: CGFloat = 19
     static let explainFileStroke: CGFloat = 1.3
 
     static let fileCheckboxSize: CGFloat = 17
-    static let hunkCheckboxSize: CGFloat = 12
     static let checkboxEmptyStroke: CGFloat = 1.3
     static let fileCheckboxCheckStroke: CGFloat = 1.6
-    static let hunkCheckboxCheckStroke: CGFloat = 1.7
-
-    static let hunkActionSize: CGFloat = 13
-    static let hunkExplainStroke: CGFloat = 1.5
-    static let hunkChatStroke: CGFloat = 1.3
 
     static let explainSelectionSize: CGFloat = 14
     static let explainSelectionStroke: CGFloat = 1.3
@@ -107,7 +103,8 @@ nonisolated struct DiffChevronShape: Shape {
     }
 }
 
-/// The filled folder mark on a directory row. viewBox 16.
+/// The folder outline on a directory row. Closed path so stroke and former fill agree.
+/// viewBox 16.
 nonisolated struct DiffFolderShape: Shape {
     private static let viewBox: CGFloat = 16
 
@@ -287,35 +284,6 @@ nonisolated struct DiffHunkExplainShape: Shape {
         path.addLine(to: box.scaled(x: 13.5, y: 8))
         path.move(to: box.scaled(x: 2.5, y: 12))
         path.addLine(to: box.scaled(x: 8.5, y: 12))
-        return path
-    }
-}
-
-/// Hunk chat bubble. viewBox 16.
-nonisolated struct DiffHunkChatShape: Shape {
-    private static let viewBox: CGFloat = 16
-
-    func path(in rect: CGRect) -> Path {
-        let box = DiffIconViewBox(side: Self.viewBox, in: rect)
-        var path = Path()
-        // Bubble body with a tail: M3 2.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8.5L5.5 13.5v-3H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z
-        path.move(to: box.scaled(x: 3, y: 2.5))
-        path.addLine(to: box.scaled(x: 13, y: 2.5))
-        box.addCornerArc(to: &path, from: (13, 2.5), to: (14, 3.5), center: (13, 3.5))
-        path.addLine(to: box.scaled(x: 14, y: 9.5))
-        box.addCornerArc(to: &path, from: (14, 9.5), to: (13, 10.5), center: (13, 9.5))
-        path.addLine(to: box.scaled(x: 8.5, y: 10.5))
-        path.addLine(to: box.scaled(x: 5.5, y: 13.5))
-        path.addLine(to: box.scaled(x: 5.5, y: 10.5))
-        path.addLine(to: box.scaled(x: 3, y: 10.5))
-        box.addCornerArc(to: &path, from: (3, 10.5), to: (2, 9.5), center: (3, 9.5))
-        path.addLine(to: box.scaled(x: 2, y: 3.5))
-        box.addCornerArc(to: &path, from: (2, 3.5), to: (3, 2.5), center: (3, 3.5))
-        path.closeSubpath()
-        path.move(to: box.scaled(x: 4.5, y: 5.5))
-        path.addLine(to: box.scaled(x: 11.5, y: 5.5))
-        path.move(to: box.scaled(x: 4.5, y: 7.5))
-        path.addLine(to: box.scaled(x: 9, y: 7.5))
         return path
     }
 }

@@ -32,8 +32,9 @@ extension DiffModel {
         readerScrollRequest = nil
         closedDirectories = []
         filePatchBodies = [:]
+        hunkPatchBodies = [:]
         filePatchHeaders = [:]
-        completedFileExplanations = [:]
+        completedExplanations = [:]
         explanationMessageIDs = [:]
         chatScrollRequest = nil
         cancelAgentExplain(clearQueue: true)
@@ -70,7 +71,8 @@ extension DiffModel {
     private func apply(patch: Patch) {
         let adapted = PatchAdapter.toDiffFiles(patch)
         files = adapted
-        sectionFiles = adapted.filter(\.belongsInReader)
+        // Patch order stays on `files`; the reader walks tree display order.
+        sectionFiles = DiffReaderDisplayOrder.sectionFiles(from: adapted)
         declaredFileCount = adapted.count
         declaredAdditions = adapted.reduce(0) { $0 + $1.additions }
         declaredDeletions = adapted.reduce(0) { $0 + $1.deletions }
@@ -86,6 +88,7 @@ extension DiffModel {
         }
         filePatchBodies = bodies
         filePatchHeaders = headers
+        hunkPatchBodies = DiffHunkPatch.bodies(from: patch)
         loadState = .loaded
         refreshFilterCaches()
         refreshReadProgress()
@@ -116,9 +119,10 @@ extension DiffModel {
         pendingReply?.cancel()
         pendingReply = nil
         cancelAgentExplain(clearQueue: true)
-        completedFileExplanations = [:]
+        completedExplanations = [:]
         explanationMessageIDs = [:]
         filePatchBodies = [:]
+        hunkPatchBodies = [:]
         filePatchHeaders = [:]
         repositoryRoot = nil
         progressKey = nil

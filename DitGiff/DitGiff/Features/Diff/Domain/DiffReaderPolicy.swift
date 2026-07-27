@@ -1,3 +1,5 @@
+import CoreGraphics
+
 /// A run of lines the reader dragged over, and how it is named in the popover and in
 /// the chat message it produces.
 nonisolated struct DiffSelection: Equatable, Sendable {
@@ -85,13 +87,26 @@ nonisolated enum DiffFileNavigation: Equatable, Sendable {
     case unavailableInReader(path: String)
 }
 
+/// Where a file-jump lands inside the reader viewport. Every navigation path
+/// (sidebar click, ←/→, `n`) must use the same kind — mixing top and center is
+/// what made jumps look non-deterministic.
+nonisolated enum DiffReaderFileJumpAnchor: Equatable, Sendable {
+    /// Sticky file header flush with the top of the reader viewport.
+    case headerTop
+}
+
 /// Pure rules for sidebar → reader navigation. The view only animates what this decides.
 nonisolated enum DiffFileNavigationResolver {
-    /// Stable `ScrollViewReader` id for a file's sticky header. One id per section file —
-    /// not per line — so jumping never requires materialising the LazyVStack of code.
+    /// Stable `ScrollViewReader` id for a file's body-start sentinel. One id per
+    /// section file — not per line — so jumping never requires materialising the
+    /// LazyVStack of code. Lives on the body, not the pinned header, so the pin
+    /// of the file above cannot cover the target.
     static func scrollAnchorID(filePath: String) -> String {
         "diff-file:\(filePath)"
     }
+
+    /// Single policy for every file jump. The view maps this onto `UnitPoint.top`.
+    static let fileJumpAnchor: DiffReaderFileJumpAnchor = .headerTop
 
     static func resolve(
         filePath: String,
@@ -109,8 +124,23 @@ nonisolated enum DiffFileNavigationResolver {
     static let expandsCollapsedFileOnNavigate = false
 }
 
+/// Trailing slack so a file near the end of the list can still put its header at the
+/// top of the viewport. Without this, `scrollTo(.top)` clamps and the card sits
+/// mid-screen — the "sometimes centered" landing.
+nonisolated enum DiffReaderFileJumpLayout {
+    static func bottomScrollSlack(
+        viewportHeight: CGFloat,
+        minimumPadding: CGFloat
+    ) -> CGFloat {
+        max(minimumPadding, viewportHeight)
+    }
+}
+
 /// How many times the reader retries a sidebar jump after layout settles. Pure policy —
 /// the view scrolls; this decides animation vs corrective passes and when to stop.
+///
+/// Correctives stay — LazyVStack's first pass often misses before off-screen bodies
+/// materialise. They must not animate: an animated correction is the visible flick.
 nonisolated enum DiffReaderScrollRetry {
     static let animatedAttempt = 0
     static let firstCorrectiveAttempt = 1

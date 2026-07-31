@@ -1211,10 +1211,9 @@ struct DiffKeyboardNavigationTests {
 
         #expect(model.focusedFilePath == guardFile.path)
         #expect(model.readerScrollRequest?.path == guardFile.path)
-        #expect(model.readerScrollRequest?.attempt == DiffReaderScrollRetry.animatedAttempt)
     }
 
-    @Test func goToNextFileOnKeyRepeatUsesRapidScrollThatReplacesInFlightJump() throws {
+    @Test func goToNextFileOnKeyRepeatReplacesInFlightJumpWithNewNonce() throws {
         let model = makeModel()
         let first = try #require(model.file(atPath: "Sources/Billing/BillingConfig.swift"))
         let second = try #require(model.file(atPath: "Sources/Billing/BillingGuard.swift"))
@@ -1223,18 +1222,91 @@ struct DiffKeyboardNavigationTests {
         let firstNonce = try #require(model.readerScrollRequest?.nonce)
 
         model.goToNextFile(isKeyRepeat: true)
-        let rapid = try #require(model.readerScrollRequest)
+        let secondRequest = try #require(model.readerScrollRequest)
         #expect(model.focusedFilePath == second.path)
-        #expect(rapid.path == second.path)
-        #expect(rapid.attempt == DiffReaderScrollRetry.finalAttempt)
-        #expect(rapid.nonce != firstNonce)
+        #expect(secondRequest.path == second.path)
+        #expect(secondRequest.nonce != firstNonce)
+        #expect(secondRequest.scrollStyle == .rapid)
 
         model.goToNextFile(isKeyRepeat: true)
-        let replaced = try #require(model.readerScrollRequest)
+        let thirdRequest = try #require(model.readerScrollRequest)
         #expect(model.focusedFilePath == third.path)
-        #expect(replaced.path == third.path)
-        #expect(replaced.attempt == DiffReaderScrollRetry.finalAttempt)
-        #expect(replaced.nonce != rapid.nonce)
+        #expect(thirdRequest.path == third.path)
+        #expect(thirdRequest.nonce != secondRequest.nonce)
+        #expect(thirdRequest.scrollStyle == .rapid)
+    }
+
+    @Test func goToNextFileWithoutKeyRepeatUsesSettledScrollStyle() throws {
+        let model = makeModel()
+        let config = try #require(model.file(atPath: "Sources/Billing/BillingConfig.swift"))
+        model.revealFileInReader(config)
+        model.clearReaderScrollRequest()
+
+        model.goToNextFile(isKeyRepeat: false)
+
+        #expect(model.readerScrollRequest?.scrollStyle == .settled)
+    }
+
+    // MARK: - Rapid repeat burst release (viewer policy wiring)
+
+    @Test func repeatBurstReleasePolicyMatchesViewerWiring() throws {
+        var policy = DiffReaderRapidRepeatBurstPolicy()
+        let model = makeModel()
+        let first = try #require(model.file(atPath: "Sources/Billing/BillingConfig.swift"))
+        let second = try #require(model.file(atPath: "Sources/Billing/BillingGuard.swift"))
+        model.revealFileInReader(first)
+        model.clearReaderScrollRequest()
+
+        let nonceBefore = model.readerScrollRequest?.nonce
+        model.goToNextFile(isKeyRepeat: true)
+        let rapid = try #require(model.readerScrollRequest)
+        policy.noteRepeatFileNavigationDispatch(
+            direction: .next,
+            producedNewRapidRequest: rapid.scrollStyle == .rapid && rapid.nonce != nonceBefore,
+            filePath: rapid.path
+        )
+        #expect(model.focusedFilePath == second.path)
+
+        let release = policy.handleKeyRelease(
+            DiffReaderKeyReleaseEvent(key: .rightArrow, modifiers: .init())
+        )
+        #expect(release == .settled(path: second.path))
+    }
+
+    @Test func bareKeyUpWithoutRepeatBurstIsIgnoredByPolicy() {
+        var policy = DiffReaderRapidRepeatBurstPolicy()
+        let outcome = policy.handleKeyRelease(
+            DiffReaderKeyReleaseEvent(key: .rightArrow, modifiers: .init())
+        )
+        #expect(outcome == .ignored)
+    }
+
+    @Test func oppositeArrowKeyUpClearsBurstWithoutSettlement() {
+        var policy = DiffReaderRapidRepeatBurstPolicy()
+        policy.noteRepeatFileNavigationDispatch(
+            direction: .next,
+            producedNewRapidRequest: true,
+            filePath: "a.swift"
+        )
+        let outcome = policy.handleKeyRelease(
+            DiffReaderKeyReleaseEvent(key: .leftArrow, modifiers: .init())
+        )
+        #expect(outcome == .ignored)
+        #expect(policy.burst == nil)
+    }
+
+    @Test func modifiedArrowKeyUpClearsBurstWithoutSettlement() {
+        var policy = DiffReaderRapidRepeatBurstPolicy()
+        policy.noteRepeatFileNavigationDispatch(
+            direction: .previous,
+            producedNewRapidRequest: true,
+            filePath: "b.swift"
+        )
+        let outcome = policy.handleKeyRelease(
+            DiffReaderKeyReleaseEvent(key: .leftArrow, modifiers: .init(shift: true))
+        )
+        #expect(outcome == .ignored)
+        #expect(policy.burst == nil)
     }
 
     @Test func goToNextUnreadSkipsReadFilesIncludingViewedZeroHunk() throws {

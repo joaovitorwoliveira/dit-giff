@@ -106,26 +106,16 @@ nonisolated enum DiffReaderDisplayOrder {
     }
 }
 
-/// How the reader should jump to a file's scroll anchor. Key-repeat bursts use `.rapid`
-/// so each new target replaces the previous jump instead of stacking animations.
+/// How the reader should jump to a file's section header. Key-repeat bursts use `.rapid`
+/// so each new target replaces the previous jump with a single snap — no correction chain.
 nonisolated enum DiffReaderFileScrollStyle: Equatable, Sendable {
-    /// One animated pass plus corrective retries after layout settles (click / single key).
+    /// Identity bootstrap on the body sentinel, then bounded point correction.
     case settled
-    /// Single non-animated snap; no retry chain (held ←/→).
+    /// Identity bootstrap only during key-repeat; key-up issues `.settled`.
     case rapid
 
     static func forKeyRepeat(_ isKeyRepeat: Bool) -> DiffReaderFileScrollStyle {
         isKeyRepeat ? .rapid : .settled
-    }
-
-    /// Maps onto `DiffReaderScrollRetry` attempt indexes without re-encoding that policy.
-    var initialAttempt: Int {
-        switch self {
-        case .settled:
-            return DiffReaderScrollRetry.animatedAttempt
-        case .rapid:
-            return DiffReaderScrollRetry.finalAttempt
-        }
     }
 }
 

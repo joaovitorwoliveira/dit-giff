@@ -11,17 +11,6 @@ struct DiffFileNavigationTests {
 
     // MARK: - Resolver
 
-    @Test func scrollAnchorIDIsStableAndPathScoped() {
-        #expect(
-            DiffFileNavigationResolver.scrollAnchorID(filePath: "Sources/A.swift")
-                == "diff-file:Sources/A.swift"
-        )
-        #expect(
-            DiffFileNavigationResolver.scrollAnchorID(filePath: "Sources/A.swift")
-                != DiffFileNavigationResolver.scrollAnchorID(filePath: "Sources/B.swift")
-        )
-    }
-
     @Test func resolveScrollsWhenTheFileIsInTheReader() {
         let result = DiffFileNavigationResolver.resolve(
             filePath: "Sources/Billing/BillingGuard.swift",
@@ -48,6 +37,13 @@ struct DiffFileNavigationTests {
         #expect(DiffFileNavigationResolver.fileJumpAnchor == .headerTop)
     }
 
+    @Test func scrollAnchorIDIsStablePerFilePath() {
+        #expect(
+            DiffFileNavigationResolver.scrollAnchorID(filePath: "Sources/A.swift")
+                == "diff-file:Sources/A.swift"
+        )
+    }
+
     @Test func bottomScrollSlackPrefersViewportHeightSoLastFilesCanPinToTop() {
         #expect(
             DiffReaderFileJumpLayout.bottomScrollSlack(
@@ -69,30 +65,8 @@ struct DiffFileNavigationTests {
         )
     }
 
-    // MARK: - Scroll retry policy
-
-    @Test func scrollRetryAnimatesOnlyTheFirstAttempt() {
-        #expect(DiffReaderScrollRetry.isAnimated(attempt: 0))
-        #expect(DiffReaderScrollRetry.isAnimated(attempt: 1) == false)
-        #expect(DiffReaderScrollRetry.isAnimated(attempt: 2) == false)
-    }
-
-    @Test func scrollRetryCorrectivesAreNotAnimated() {
-        #expect(DiffReaderScrollRetry.isAnimated(attempt: DiffReaderScrollRetry.firstCorrectiveAttempt) == false)
-        #expect(DiffReaderScrollRetry.isAnimated(attempt: DiffReaderScrollRetry.finalAttempt) == false)
-    }
-
-    @Test func scrollRetryDelaysEndAfterTheSecondCorrectivePass() {
-        #expect(DiffReaderScrollRetry.delayAfter(attempt: 0) != nil)
-        #expect(DiffReaderScrollRetry.delayAfter(attempt: 1) != nil)
-        #expect(DiffReaderScrollRetry.delayAfter(attempt: 2) == nil)
-    }
-
-    @Test func fileScrollStyleMapsSettledToAnimatedAndRapidToFinal() {
-        #expect(DiffReaderFileScrollStyle.settled.initialAttempt == DiffReaderScrollRetry.animatedAttempt)
-        #expect(DiffReaderFileScrollStyle.rapid.initialAttempt == DiffReaderScrollRetry.finalAttempt)
-        #expect(DiffReaderFileScrollStyle.forKeyRepeat(false) == .settled)
-        #expect(DiffReaderFileScrollStyle.forKeyRepeat(true) == .rapid)
+    @Test func interFileCardGapMatchesDesignSpaceS16() {
+        #expect(DiffReaderFileCardGap.height == DSSpace.s16.points)
     }
 
     // MARK: - Model
@@ -110,11 +84,7 @@ struct DiffFileNavigationTests {
         #expect(model.focusedFilePath == billingGuard.path)
         let request = try #require(model.readerScrollRequest)
         #expect(request.path == billingGuard.path)
-        #expect(request.attempt == DiffReaderScrollRetry.animatedAttempt)
-        #expect(
-            DiffFileNavigationResolver.scrollAnchorID(filePath: request.path)
-                == "diff-file:Sources/Billing/BillingGuard.swift"
-        )
+        #expect(request.scrollStyle == .settled)
     }
 
     @Test func revealingTheSameFileAgainIssuesANewScrollRequest() throws {
@@ -133,49 +103,9 @@ struct DiffFileNavigationTests {
 
         #expect(second.path == first.path)
         #expect(second.nonce != first.nonce)
-        #expect(second.attempt == DiffReaderScrollRetry.animatedAttempt)
     }
 
-    @Test func advancingTheScrollSequencePreservesPathAndNonceAndIncrementsAttempt() throws {
-        let model = makeModel()
-        let billingGuard = try #require(
-            model.file(atPath: "Sources/Billing/BillingGuard.swift")
-        )
-        model.revealFileInReader(billingGuard)
-        let first = try #require(model.readerScrollRequest)
-
-        model.advanceReaderScrollRequest()
-        let second = try #require(model.readerScrollRequest)
-
-        #expect(second.path == first.path)
-        #expect(second.nonce == first.nonce)
-        #expect(second.attempt == first.attempt + 1)
-
-        model.advanceReaderScrollRequest()
-        let third = try #require(model.readerScrollRequest)
-
-        #expect(third.path == first.path)
-        #expect(third.nonce == first.nonce)
-        #expect(third.attempt == DiffReaderScrollRetry.finalAttempt)
-    }
-
-    @Test func advancingBeyondTheFinalAttemptClearsTheRequest() throws {
-        let model = makeModel()
-        let billingGuard = try #require(
-            model.file(atPath: "Sources/Billing/BillingGuard.swift")
-        )
-        model.revealFileInReader(billingGuard)
-        model.advanceReaderScrollRequest()
-        model.advanceReaderScrollRequest()
-        let final = try #require(model.readerScrollRequest)
-        #expect(final.attempt == DiffReaderScrollRetry.finalAttempt)
-
-        model.advanceReaderScrollRequest()
-
-        #expect(model.readerScrollRequest == nil)
-    }
-
-    @Test func revealingAnotherFileWhileASequenceIsInFlightIssuesANewNonce() throws {
+    @Test func revealingAnotherFileWhileAJumpIsInFlightIssuesANewNonce() throws {
         let model = makeModel()
         let billingGuard = try #require(
             model.file(atPath: "Sources/Billing/BillingGuard.swift")
@@ -183,14 +113,12 @@ struct DiffFileNavigationTests {
         let apiClient = try #require(model.file(atPath: "Sources/HTTP/APIClient.swift"))
         model.revealFileInReader(billingGuard)
         let first = try #require(model.readerScrollRequest)
-        model.advanceReaderScrollRequest()
 
         model.revealFileInReader(apiClient)
         let second = try #require(model.readerScrollRequest)
 
         #expect(second.path == apiClient.path)
         #expect(second.nonce != first.nonce)
-        #expect(second.attempt == DiffReaderScrollRetry.animatedAttempt)
     }
 
     @Test func revealingANoContentFileScrollsToItsHeader() throws {

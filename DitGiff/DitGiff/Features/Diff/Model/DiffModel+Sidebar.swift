@@ -127,9 +127,9 @@ extension DiffModel {
 
     /// Sidebar file row click / keyboard file jump. Marks the file current; scrolls the
     /// reader when the file is in `sectionFiles`. Does not expand a collapsed file —
-    /// the section header is still the visual target (via pin) once the body anchor
-    /// lands. `fileScroll: .rapid` replaces any in-flight jump without stacking
-    /// animations — required when ←/→ key-repeat fires many times per second.
+    /// the section header is still the visual target (via pin). `fileScroll: .rapid`
+    /// identity-bootstraps during key-repeat; key-up issues `.settled`. Focus updates
+    /// immediately either way.
     ///
     /// Does **not** open closed ancestor folders — callers that need that (`n`,
     /// progress restore) call `ensureAncestorDirectoriesOpen` themselves.
@@ -144,12 +144,11 @@ extension DiffModel {
             sectionFilePaths: sectionPaths
         ) {
         case let .scrollToHeader(path):
-            // Fresh nonce cancels any pending corrective Task from a prior jump.
             readerScrollNonce &+= 1
             readerScrollRequest = DiffReaderScrollRequest(
                 path: path,
                 nonce: readerScrollNonce,
-                attempt: fileScroll.initialAttempt
+                scrollStyle: fileScroll
             )
         case .unavailableInReader:
             readerScrollRequest = nil
@@ -157,24 +156,24 @@ extension DiffModel {
         persistReadingProgress()
     }
 
-    /// Advances the reader scroll retry sequence after a corrective delay. When the policy
-    /// has no further pass, clears the request so the next sidebar click can fire.
-    func advanceReaderScrollRequest() {
-        guard let request = readerScrollRequest else { return }
-        guard DiffReaderScrollRetry.delayAfter(attempt: request.attempt) != nil else {
-            readerScrollRequest = nil
-            return
-        }
-        readerScrollRequest = DiffReaderScrollRequest(
-            path: request.path,
-            nonce: request.nonce,
-            attempt: request.attempt + 1
-        )
-    }
-
     /// Ends an in-flight scroll sequence without touching sidebar focus.
     func clearReaderScrollRequest() {
         readerScrollRequest = nil
+    }
+
+    /// One settled jump for an explicit file path — used when a ←/→ repeat burst ends
+    /// so settlement targets the last rapid file, not the folder the cursor may sit on.
+    /// Does not move tree focus or advance the cursor.
+    func settleReaderScrollOnFile(path: String) {
+        if DiffTreeLinePath.isDirectory(path) { return }
+        let sectionPaths = Set(sectionFiles.map(\.path))
+        guard sectionPaths.contains(path) else { return }
+        readerScrollNonce &+= 1
+        readerScrollRequest = DiffReaderScrollRequest(
+            path: path,
+            nonce: readerScrollNonce,
+            scrollStyle: .settled
+        )
     }
 
     // MARK: - Viewed and collapsed

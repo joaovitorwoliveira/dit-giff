@@ -19,6 +19,22 @@ private enum DiffCodeGridSpace {
     static let name = "diff.codeGrid"
 }
 
+/// Row frames for selection hit-testing — reference storage so preference updates
+/// do not re-render the grid on every layout pass.
+@MainActor
+private final class DiffCodeRowFramesStore {
+    private(set) var frames: [Int: DiffCodeRowFrame] = [:]
+
+    func updateIfNeeded(_ newFrames: [Int: DiffCodeRowFrame]) {
+        guard newFrames != frames else { return }
+        frames = newFrames
+    }
+
+    func reset() {
+        frames = [:]
+    }
+}
+
 struct DiffCodeGrid: View {
     @Environment(\.diffHunkRenderCache) private var renderCache
 
@@ -28,7 +44,7 @@ struct DiffCodeGrid: View {
     let selectLines: (_ from: Int, _ through: Int) -> Void
 
     @State private var dragOrigin: Int?
-    @State private var measuredFrames: [Int: DiffCodeRowFrame] = [:]
+    @State private var framesStore = DiffCodeRowFramesStore()
 
     var body: some View {
         // Lookup stays in body (not init) so struct recreation does not re-lex. When
@@ -43,12 +59,15 @@ struct DiffCodeGrid: View {
                     line: hunk.lines[rowID.rowIndex],
                     syntaxSpans: syntaxSpans[rowID.rowIndex],
                     rowIndex: rowID.rowIndex,
-                    isSelected: selectedRows?.contains(rowID.rowIndex) ?? false
+                    isSelected: selectedRows?.contains(rowID.rowIndex) ?? false,
+                    measureFrame: isSelectingLines
                 )
             }
         }
         .coordinateSpace(name: DiffCodeGridSpace.name)
-        .onPreferenceChange(DiffCodeRowFramesKey.self) { measuredFrames = $0 }
+        .onPreferenceChange(DiffCodeRowFramesKey.self) { newFrames in
+            framesStore.updateIfNeeded(newFrames)
+        }
         .contentShape(Rectangle())
         .highPriorityGesture(selectionDrag)
         .dsPadding(.vertical, .s4)
@@ -75,7 +94,7 @@ struct DiffCodeGrid: View {
                 isSelectingLines = true
                 let index = DiffCodeSelectionHitTesting.rowIndex(
                     atY: Double(value.location.y),
-                    frames: measuredFrames,
+                    frames: framesStore.frames,
                     lineCount: hunk.lines.count,
                     fallbackHeight: Double(DiffViewerMetric.codeLineHeight)
                 )
@@ -87,6 +106,7 @@ struct DiffCodeGrid: View {
             }
             .onEnded { _ in
                 dragOrigin = nil
+                framesStore.reset()
                 // Let the viewer's tap-to-clear see the flag for one turn after the drag.
                 DispatchQueue.main.async {
                     isSelectingLines = false
@@ -102,6 +122,7 @@ private struct DiffCodeLineRow: View {
     let syntaxSpans: [SyntaxSpan]
     let rowIndex: Int
     let isSelected: Bool
+    let measureFrame: Bool
 
     var body: some View {
         // Top-aligned gutter: when the code wraps, numbers and the sign stay on the
@@ -134,17 +155,19 @@ private struct DiffCodeLineRow: View {
             }
         }
         .background {
-            GeometryReader { geo in
-                let frame = geo.frame(in: .named(DiffCodeGridSpace.name))
-                Color.clear.preference(
-                    key: DiffCodeRowFramesKey.self,
-                    value: [
-                        rowIndex: DiffCodeRowFrame(
-                            minY: Double(frame.minY),
-                            height: Double(frame.height)
-                        ),
-                    ]
-                )
+            if measureFrame {
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .named(DiffCodeGridSpace.name))
+                    Color.clear.preference(
+                        key: DiffCodeRowFramesKey.self,
+                        value: [
+                            rowIndex: DiffCodeRowFrame(
+                                minY: Double(frame.minY),
+                                height: Double(frame.height)
+                            ),
+                        ]
+                    )
+                }
             }
         }
     }

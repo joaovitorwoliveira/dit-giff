@@ -5,7 +5,6 @@ import SwiftUI
 /// A drag across lines opens the selection popover; a tap elsewhere clears it.
 struct DiffViewer: View {
     @Environment(\.dsPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let model: DiffModel
     /// Owned by the diff shell so a sidebar file click can hand keyboard focus here
@@ -14,12 +13,15 @@ struct DiffViewer: View {
     /// Set while a drag is choosing lines, so the viewer's "tap outside" clear does not
     /// erase the selection the drag just made.
     @State private var isSelectingLines = false
-    /// Point-mode scroll position for in-file keyboard paging. File jumps still use
-    /// ScrollViewReader; geometry below is the source of truth for the current offset
-    /// because a reader jump does not update `scrollPosition.y`.
+    /// Point-mode scroll position for in-file paging and sentinel point corrections.
     @State private var scrollPosition = ScrollPosition(y: 0)
-    @State private var scrollOffsetY: CGFloat = 0
-    @State private var scrollViewportHeight: CGFloat = 0
+    /// ScrollView container height — measured outside scroll content so bottom slack
+    /// padding does not feed back into `onScrollGeometryChange`.
+    @State private var readerViewportHeight: CGFloat = 0
+    /// Reference copy for paging UI and sentinel → content-offset conversion.
+    @State private var scrollGeometryStore = DiffReaderScrollGeometryStore()
+    /// File-jump samples and correction state — reference storage for geometry callbacks.
+    @State private var fileJumpController = DiffReaderFileJumpController()
     /// One cache for the whole reader column; survives selection / read-state churn
     /// without re-lexing visible hunks on every `DiffCodeGrid` struct recreation.
     @State private var hunkRenderCache = DiffHunkRenderCache()
@@ -29,22 +31,18 @@ struct DiffViewer: View {
         // `maxWidth: .infinity` resolves against the reader column again — cards, headers
         // and line fills share one width.
         //
-        // Sidebar / keyboard jumps use ScrollViewReader → scrollTo(id, headerTop).
-        // The id sits on a zero-height sentinel at the start of the section *body*,
-        // not on the sticky header: scrolling a pinned header to the top leaves the
-        // previous file's pin covering the target, so the reader appears to land on
-        // the file above. Body-first lets this section's header pin cleanly on top.
+        // Sidebar / keyboard jumps: `ScrollViewReader.scrollTo` on the body-start sentinel
+        // id, then at most bounded point corrections from sentinel geometry. Focus stays on
+        // the ScrollView so arrows / n / v fire here. Native space paging does not:
+        // `.focusable()` installs a KeyViewProxy first responder, so in-file keys are
+        // applied through scrollPosition instead.
         ScrollViewReader { scrollProxy in
-            // Focus stays on the ScrollView so arrows / n / v fire here. Native space
-            // paging does not: `.focusable()` installs a KeyViewProxy first responder,
-            // so in-file keys are applied through scrollPosition instead.
             ScrollView {
                 // Stack spacing is 0 on purpose: with pinned section headers the
                 // header and body are separate LazyVStack children, so any gap
                 // here would open the card between them. Inter-file breathing
-                // lives as bottom padding on the section body instead — still
-                // outside the sticky header, so scrollTo's body sentinel stays
-                // flush under the pin.
+                // lives as an unconditional clear spacer at the end of the
+                // section body — still outside the sticky header.
                 LazyVStack(
                     alignment: .leading,
                     spacing: 0,
@@ -52,8 +50,6 @@ struct DiffViewer: View {
                 ) {
                     ForEach(model.sectionFiles) { file in
                         Section {
-                            // Always present — even when the body is collapsed — so a
-                            // jump to a viewed/collapsed file still has an anchor.
                             Color.clear
                                 .frame(height: 0)
                                 .id(
@@ -62,15 +58,33 @@ struct DiffViewer: View {
                                     )
                                 )
                                 .accessibilityHidden(true)
+                                .onGeometryChange(for: DiffReaderBodySentinelSample.self) { proxy in
+                                    DiffReaderBodySentinelSample(
+                                        viewportMinY: proxy.frame(in: .scrollView).minY,
+                                        contentMinY: proxy.frame(
+                                            in: .named(DiffReaderScrollContentSpace.name)
+                                        ).minY
+                                    )
+                                } action: { sample in
+                                    if fileJumpController.recordSentinelSample(
+                                        path: file.path,
+                                        sample: sample
+                                    ) {
+                                        fileJumpController.scheduleDeferredProcessing {
+                                            processPendingSentinelSample()
+                                        }
+                                    }
+                                }
                             DiffFileBody(
                                 file: file,
                                 model: model,
                                 isSelectingLines: $isSelectingLines
                             )
-                            // Card-to-card gap (and collapsed-header-to-next-card).
-                            // Stays on the body so a collapsed file still breathes
-                            // and the last file keeps room before the list pad.
-                            .dsPadding(.bottom, .s16)
+                            // Always present — padding on an empty (collapsed)
+                            // DiffFileBody collapses to zero height in SwiftUI.
+                            Color.clear
+                                .frame(height: DiffReaderFileCardGap.height)
+                                .accessibilityHidden(true)
                         } header: {
                             DiffFileStickyHeader(file: file, model: model)
                         }
@@ -84,25 +98,51 @@ struct DiffViewer: View {
                 .padding(
                     .bottom,
                     DiffReaderFileJumpLayout.bottomScrollSlack(
-                        viewportHeight: scrollViewportHeight,
+                        viewportHeight: readerViewportHeight,
                         minimumPadding: DSSpace.s48.points
                     )
                 )
+                // Modifier order is scroll math: this named space must share the ScrollView
+                // content child's origin (after padding). Placing it on the inner LazyVStack
+                // before top padding makes sentinel contentMinY miss the 16pt inset.
+                .coordinateSpace(name: DiffReaderScrollContentSpace.name)
             }
             .scrollPosition($scrollPosition)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                guard height > 0 else { return }
+                let wasUnmeasured = readerViewportHeight == 0
+                if wasUnmeasured {
+                    readerViewportHeight = height
+                    if let request = model.readerScrollRequest,
+                       request.scrollStyle == .settled
+                    {
+                        scheduleViewportReadyRestart(
+                            request: request,
+                            scrollProxy: scrollProxy
+                        )
+                    }
+                    return
+                }
+                guard abs(height - readerViewportHeight) > DiffReaderScrollGeometryTolerance.viewportResizeLatch
+                else { return }
+                readerViewportHeight = height
+            }
             .onScrollGeometryChange(for: DiffReaderVisibleScroll.self) { geometry in
                 DiffReaderVisibleScroll(
                     offsetY: geometry.contentOffset.y,
-                    viewportHeight: geometry.containerSize.height
+                    viewportHeight: geometry.containerSize.height,
+                    viewportWidth: geometry.containerSize.width,
+                    contentHeight: geometry.contentSize.height
                 )
             } action: { _, visible in
-                scrollOffsetY = visible.offsetY
-                scrollViewportHeight = visible.viewportHeight
-                // Proxy file jumps do not write ScrollPosition; mirror geometry so the
-                // binding cannot yank the reader back to a stale offset mid-sequence.
-                if model.readerScrollRequest != nil {
-                    scrollPosition.scrollTo(y: visible.offsetY)
-                }
+                scrollGeometryStore.update(
+                    offsetY: visible.offsetY,
+                    viewportHeight: visible.viewportHeight,
+                    viewportWidth: visible.viewportWidth,
+                    contentHeight: visible.contentHeight
+                )
             }
             .focusable()
             .focused(isFocused)
@@ -111,9 +151,13 @@ struct DiffViewer: View {
             // Folder jumps / n / v still refuse repeat inside `handleKeyPress`.
             // ←/→ walk visible tree lines (file or folder); key-repeat is intentional.
             .onKeyPress(phases: [.down, .repeat], action: handleKeyPress)
+            .onKeyPress(phases: [.up], action: handleKeyUp)
             .onChange(of: model.readerScrollRequest) { _, request in
-                guard let request else { return }
-                performReaderScroll(request, scrollProxy: scrollProxy)
+                guard let request else {
+                    fileJumpController.clearAwaiting()
+                    return
+                }
+                beginFileJump(request, scrollProxy: scrollProxy)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -142,8 +186,22 @@ struct DiffViewer: View {
         DiffReaderKeyIntentDispatch.perform(
             intent,
             actions: DiffReaderKeyIntentDispatch.Actions(
-                goToNextFile: { model.goToNextFile(isKeyRepeat: isRepeat) },
-                goToPreviousFile: { model.goToPreviousFile(isKeyRepeat: isRepeat) },
+                goToNextFile: {
+                    trackRapidRepeatBurstAfter(
+                        isRepeat: isRepeat,
+                        direction: .next
+                    ) {
+                        model.goToNextFile(isKeyRepeat: isRepeat)
+                    }
+                },
+                goToPreviousFile: {
+                    trackRapidRepeatBurstAfter(
+                        isRepeat: isRepeat,
+                        direction: .previous
+                    ) {
+                        model.goToPreviousFile(isKeyRepeat: isRepeat)
+                    }
+                },
                 goToNextFolder: { model.goToNextFolder() },
                 goToPreviousFolder: { model.goToPreviousFolder() },
                 openFocusedFolder: { model.openFocusedFolder() },
@@ -154,6 +212,38 @@ struct DiffViewer: View {
             )
         )
         return .handled
+    }
+
+    private func handleKeyUp(_ keyPress: KeyPress) -> KeyPress.Result {
+        switch fileJumpController.rapidRepeatBurstPolicy.handleKeyRelease(
+            readerKeyEvent(from: keyPress)
+        ) {
+        case let .settled(path):
+            model.settleReaderScrollOnFile(path: path)
+            return .handled
+        case .ignored:
+            return .ignored
+        }
+    }
+
+    /// Marks a ←/→ repeat burst when a repeat dispatch issues a new rapid scroll request.
+    private func trackRapidRepeatBurstAfter(
+        isRepeat: Bool,
+        direction: DiffReaderRapidRepeatDirection,
+        dispatch: () -> Void
+    ) {
+        if !isRepeat {
+            fileJumpController.rapidRepeatBurstPolicy.noteNonRepeatFileNavigationDispatch()
+            dispatch()
+            return
+        }
+        let nonceBefore = model.readerScrollRequest?.nonce
+        dispatch()
+        fileJumpController.rapidRepeatBurstPolicy.noteRepeatFileNavigationAfterDispatch(
+            direction: direction,
+            request: model.readerScrollRequest,
+            nonceBefore: nonceBefore
+        )
     }
 
     /// Bridges SwiftUI's `KeyPress` into the pure domain event the mapping tests cover.
@@ -182,8 +272,8 @@ struct DiffViewer: View {
 
     private func applyReaderScroll(_ intent: DiffReaderScrollIntent, isRepeat: Bool) {
         let target = DiffReaderScrollPaging.targetOffset(
-            currentOffset: scrollOffsetY,
-            viewportHeight: scrollViewportHeight,
+            currentOffset: scrollGeometryStore.offsetY,
+            viewportHeight: scrollGeometryStore.viewportHeight,
             lineHeight: DiffViewerMetric.codeLineHeight,
             intent: intent,
             isRepeat: isRepeat
@@ -191,44 +281,101 @@ struct DiffViewer: View {
         scrollPosition.scrollTo(y: target)
     }
 
-    private func performReaderScroll(
+    private func beginFileJump(
         _ request: DiffReaderScrollRequest,
         scrollProxy: ScrollViewProxy
     ) {
+        fileJumpController.beginJump(request: request)
+
+        let plan = DiffReaderFileJumpPlanner.plan(scrollStyle: request.scrollStyle)
+        if case let .identityBootstrap(awaitSentinelCorrection) = plan, awaitSentinelCorrection {
+            fileJumpController.awaitingSentinelCorrection = DiffReaderFileJumpAwaiting(
+                path: request.path,
+                nonce: request.nonce
+            )
+        }
+
         let anchorID = DiffFileNavigationResolver.scrollAnchorID(filePath: request.path)
-        let anchor = fileJumpUnitPoint
-        if DiffReaderScrollRetry.isAnimated(attempt: request.attempt) {
-            withAnimation(DSMotion.jump.animation(reduceMotion: reduceMotion)) {
-                scrollProxy.scrollTo(anchorID, anchor: anchor)
-            }
-        } else {
-            // Correctives must not inherit the jump animation — that inheritance is the
-            // late mid-screen flick after layout settles.
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                scrollProxy.scrollTo(anchorID, anchor: anchor)
-            }
-        }
-
-        guard let delay = DiffReaderScrollRetry.delayAfter(attempt: request.attempt) else {
-            model.clearReaderScrollRequest()
-            return
-        }
-
-        let nonce = request.nonce
-        Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard model.readerScrollRequest?.nonce == nonce else { return }
-            model.advanceReaderScrollRequest()
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            scrollProxy.scrollTo(anchorID, anchor: .top)
         }
     }
 
-    /// Maps the pure file-jump policy onto SwiftUI. Only `.headerTop` exists on purpose.
-    private var fileJumpUnitPoint: UnitPoint {
-        switch DiffFileNavigationResolver.fileJumpAnchor {
-        case .headerTop:
-            return .top
+    /// Re-runs identity bootstrap when viewport-tall bottom slack replaces the 48pt
+    /// placeholder — only while the same settled request is still pending.
+    /// Independent of sentinel deferred processing so coalesced geometry work cannot drop it.
+    private func scheduleViewportReadyRestart(
+        request: DiffReaderScrollRequest,
+        scrollProxy: ScrollViewProxy
+    ) {
+        let nonce = request.nonce
+        DispatchQueue.main.async {
+            guard let current = model.readerScrollRequest,
+                  current.nonce == nonce,
+                  current.scrollStyle == .settled
+            else { return }
+            restartSettledFileJumpIfStillPending(current, scrollProxy: scrollProxy)
+        }
+    }
+
+    private func restartSettledFileJumpIfStillPending(
+        _ request: DiffReaderScrollRequest,
+        scrollProxy: ScrollViewProxy
+    ) {
+        guard let current = model.readerScrollRequest,
+              current.nonce == request.nonce,
+              current.scrollStyle == .settled
+        else { return }
+        beginFileJump(request, scrollProxy: scrollProxy)
+    }
+
+    private func processPendingSentinelSample() {
+        guard let awaiting = fileJumpController.awaitingSentinelCorrection else { return }
+        guard fileJumpController.isActive(nonce: awaiting.nonce) else { return }
+        guard model.readerScrollRequest?.nonce == awaiting.nonce else { return }
+        guard fileJumpController.sampleGeneration > fileJumpController.processedSampleGeneration
+        else { return }
+        guard let sample = fileJumpController.pendingSample else { return }
+
+        fileJumpController.processedSampleGeneration = fileJumpController.sampleGeneration
+
+        let outcome = DiffReaderBodySentinelSampleProcessor.process(
+            sample: sample,
+            headerHeight: DiffViewerMetric.headerHeight,
+            correctionCount: fileJumpController.correctionCount
+        )
+
+        switch outcome {
+        case .aligned:
+            fileJumpController.clearAwaiting()
+            model.clearReaderScrollRequest()
+        case let .needsCorrection(targetY):
+            fileJumpController.correctionCount += 1
+            instantScrollPositionTo(y: targetY)
+            fileJumpController.schedulePostCorrectionWatchdog { nonce in
+                completeFileJumpAsExhaustedMisaligned(nonce: nonce)
+            }
+        case .exhaustedMisaligned:
+            completeFileJumpAsExhaustedMisaligned(nonce: awaiting.nonce)
+        }
+    }
+
+    /// Command cleanup after bounded correction exhausts — not an aligned success.
+    private func completeFileJumpAsExhaustedMisaligned(nonce: UInt) {
+        guard fileJumpController.isActive(nonce: nonce) else { return }
+        guard fileJumpController.awaitingSentinelCorrection != nil else { return }
+        fileJumpController.exhaustedMisaligned = true
+        fileJumpController.clearAwaiting()
+        model.clearReaderScrollRequest()
+    }
+
+    private func instantScrollPositionTo(y: CGFloat) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            scrollPosition.scrollTo(y: y)
         }
     }
 }
@@ -239,6 +386,8 @@ struct DiffViewer: View {
 private struct DiffReaderVisibleScroll: Equatable {
     var offsetY: CGFloat
     var viewportHeight: CGFloat
+    var viewportWidth: CGFloat
+    var contentHeight: CGFloat
 }
 
 // MARK: - File card chrome

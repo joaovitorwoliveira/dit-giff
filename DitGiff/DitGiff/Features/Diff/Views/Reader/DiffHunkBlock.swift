@@ -38,11 +38,15 @@ struct DiffFileBody: View {
     }
 
     private var textBody: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        let showsHunkHeader = DiffHunkHeaderVisibility.showsHeader(
+            hunkCount: file.hunks.count
+        )
+        return LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(file.hunks.enumerated()), id: \.element.id) { index, hunk in
                 DiffHunkBlock(
                     hunk: hunk,
                     model: model,
+                    showsHeader: showsHunkHeader,
                     isFirst: index == 0,
                     isLast: index == file.hunks.count - 1,
                     selectedRows: selectedHunkID == hunk.id ? selectedRows : nil,
@@ -62,6 +66,8 @@ private struct DiffHunkBlock: View {
 
     let hunk: DiffHunk
     let model: DiffModel
+    /// From `DiffHunkHeaderVisibility` for the whole file — never a local hunk count.
+    let showsHeader: Bool
     /// First hunk sits flush under the sticky file header; later ones draw a top rule.
     let isFirst: Bool
     /// Last hunk clips its content to the card's bottom corners so edge-to-edge line
@@ -77,7 +83,9 @@ private struct DiffHunkBlock: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 0) {
-                DiffHunkHeader(hunk: hunk, model: model, showsTopDivider: !isFirst)
+                if showsHeader {
+                    DiffHunkHeader(hunk: hunk, model: model, showsTopDivider: !isFirst)
+                }
                 // Hover lives on the header only (inside DiffHunkHeader). Scrolling the
                 // mouse across code lines must not thrash hunk chrome.
                 DiffCodeGrid(

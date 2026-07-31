@@ -9,8 +9,7 @@ extension DiffModel {
     }
 
     /// `→` — next visible tree line (file or folder). Never opens a closed folder.
-    /// `isKeyRepeat` skips the animated multi-pass scroll so a held arrow does not
-    /// enqueue dozens of competing jumps.
+    /// `isKeyRepeat` identity-bootstraps only; key-up settles the focused file.
     func goToNextFile(isKeyRepeat: Bool = false) {
         revealKeyboardTarget(
             DiffKeyboardNavigationResolver.nextLine(

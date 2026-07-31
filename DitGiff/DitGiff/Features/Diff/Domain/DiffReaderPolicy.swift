@@ -97,15 +97,13 @@ nonisolated enum DiffReaderFileJumpAnchor: Equatable, Sendable {
 
 /// Pure rules for sidebar → reader navigation. The view only animates what this decides.
 nonisolated enum DiffFileNavigationResolver {
-    /// Stable `ScrollViewReader` id for a file's body-start sentinel. One id per
-    /// section file — not per line — so jumping never requires materialising the
-    /// LazyVStack of code. Lives on the body, not the pinned header, so the pin
-    /// of the file above cannot cover the target.
+    /// Stable id on the body-start sentinel immediately before each file body.
+    /// Jumps bootstrap with `ScrollViewReader.scrollTo` on this id, then correct by Y.
     static func scrollAnchorID(filePath: String) -> String {
         "diff-file:\(filePath)"
     }
 
-    /// Single policy for every file jump. The view maps this onto `UnitPoint.top`.
+    /// Single policy for every file jump.
     static let fileJumpAnchor: DiffReaderFileJumpAnchor = .headerTop
 
     static func resolve(
@@ -136,42 +134,21 @@ nonisolated enum DiffReaderFileJumpLayout {
     }
 }
 
-/// How many times the reader retries a sidebar jump after layout settles. Pure policy —
-/// the view scrolls; this decides animation vs corrective passes and when to stop.
-///
-/// Correctives stay — LazyVStack's first pass often misses before off-screen bodies
-/// materialise. They must not animate: an animated correction is the visible flick.
-nonisolated enum DiffReaderScrollRetry {
-    static let animatedAttempt = 0
-    static let firstCorrectiveAttempt = 1
-    static let finalAttempt = 2
-
-    /// `DSMotion.jump` is 240ms; the first corrective pass waits for it to finish.
-    static let delayAfterAnimatedAttempt: Duration = .milliseconds(300)
-    static let delayAfterFirstCorrectiveAttempt: Duration = .milliseconds(120)
-
-    static func isAnimated(attempt: Int) -> Bool {
-        attempt == animatedAttempt
-    }
-
-    static func delayAfter(attempt: Int) -> Duration? {
-        switch attempt {
-        case animatedAttempt:
-            return delayAfterAnimatedAttempt
-        case firstCorrectiveAttempt:
-            return delayAfterFirstCorrectiveAttempt
-        default:
-            return nil
-        }
-    }
+/// Vertical breathing between consecutive file cards. Drawn as an unconditional
+/// clear spacer in each section body — not as padding on `DiffFileBody` — so a
+/// collapsed (empty) body cannot erase the gap.
+nonisolated enum DiffReaderFileCardGap {
+    static let height: CGFloat = DSSpace.s16.points
 }
 
-/// One sidebar click that should scroll the reader. `nonce` makes a repeat click on the
-/// same file observable to `onChange`; `attempt` indexes the retry sequence.
+/// One sidebar click or keyboard file jump that should scroll the reader. `nonce` makes
+/// a repeat click on the same file observable to `onChange` and cancels an in-flight jump.
+/// `scrollStyle` distinguishes a settled jump (sentinel point correction) from a
+/// key-repeat identity bootstrap (correction on key-up).
 nonisolated struct DiffReaderScrollRequest: Equatable, Sendable {
     let path: String
     let nonce: UInt
-    let attempt: Int
+    let scrollStyle: DiffReaderFileScrollStyle
 }
 
 /// One chat click that should scroll the thread to an existing explanation. `nonce`

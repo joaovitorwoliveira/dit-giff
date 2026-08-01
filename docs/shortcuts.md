@@ -1,262 +1,235 @@
-# Atalhos de teclado
+# Keyboard shortcuts
 
-Referência do que o app trata por teclado, derivada do código. Se uma tecla
-não faz nada, a pergunta útil é quase sempre: **qual superfície está com o
-foco?**
+What the app handles from the keyboard, derived from the code. When a key does
+nothing, the useful question is almost always: **which surface has focus?**
 
 ---
 
-## Foco: a regra que explica quase tudo
+## Focus: the rule that explains almost everything
 
-Os atalhos de uma letra (`n`, `v`), a navegação na árvore (setas esquerda /
-direita), a navegação entre pastas (`⇧` + setas) e a paginação do leitor
-(`Space`, setas cima / baixo, `Page Up` / `Page Down`) só disparam quando o
-`ScrollView` do leitor é o first responder. Isso está em `DiffViewer` via
-`.focusable()` + `.focused(isFocused)` + `.onKeyPress`
+Single-letter shortcuts (`n`, `v`), tree navigation (left / right arrows), folder
+navigation (`⇧` + arrows), and reader paging (`Space`, up / down, `Page Up` /
+`Page Down`) only fire when the reader's `ScrollView` is first responder. That
+lives in `DiffViewer` via `.focusable()` + `.focused(isFocused)` + `.onKeyPress`
 (`DitGiff/DitGiff/Features/Diff/Views/Reader/DiffViewer.swift`).
 
-O `FocusState` do leitor mora no shell (`DiffView`), não dentro do viewer
-(`DitGiff/DitGiff/Features/Diff/Views/DiffView.swift`). O filtro da sidebar e
-o composer do chat têm `FocusState` próprios. Digitar neles nunca chega ao
-handler do leitor — o próprio código diz isso (`DiffViewer.swift`).
+Reader `FocusState` lives in the shell (`DiffView`), not inside the viewer
+(`DitGiff/DitGiff/Features/Diff/Views/DiffView.swift`). The sidebar filter and
+chat composer have their own `FocusState`. Typing in them never reaches the reader
+handler.
 
-### O que dá foco ao leitor
+### What gives focus to the reader
 
-| Ação | Onde |
+| Action | Where |
 | --- | --- |
-| Clique num arquivo na árvore da sidebar | `onFileRevealed` → `isReaderFocused = true` (`DiffView.swift`; clique em `DiffSidebarFileRow.swift`) |
-| Toque (tap) na coluna do leitor | `isFocused.wrappedValue = true` (`DiffViewer.swift`) |
-| Dismiss do banner de erro de reading progress | `isReaderFocused = true` (`DiffView.swift`) |
+| Click a file in the sidebar tree | `onFileRevealed` → `isReaderFocused = true` (`DiffView.swift`; click in `DiffSidebarFileRow.swift`) |
+| Tap the reader column | `isFocused.wrappedValue = true` (`DiffViewer.swift`) |
+| Dismiss reading-progress error banner | `isReaderFocused = true` (`DiffView.swift`) |
 
-### O que tira o foco do leitor (e por que as letras “morrem”)
+### What steals focus from the reader
 
-- Clicar no **filtro** da sidebar: o `TextField` fica focado
-  (`DiffSidebar.swift`). As letras vão para o filtro.
-- Clicar no **composer** do chat: o `TextEditor` fica focado
-  (`DiffChatPanel.swift`). As letras vão para o rascunho.
-- Clicar no campo **Ask something specific…** do popover de seleção: o
-  `TextField` fica focado (`DiffSelectionPopover.swift`).
-- Controles com `dsFocusable` (botões da top bar, botões da Welcome)
-  podem receber foco por Tab/`focusable`; enquanto um deles for o first
-  responder, o leitor não recebe as teclas.
+- Click the sidebar **filter**: the `TextField` takes focus (`DiffSidebar.swift`).
+  Letters go into the filter.
+- Click the chat **composer**: the `TextEditor` takes focus (`DiffChatPanel.swift`).
+  Letters go into the draft.
+- Click **Ask something specific…** in the selection popover: the `TextField` takes
+  focus (`DiffSelectionPopover.swift`).
+- Controls with `dsFocusable` (top bar buttons, Welcome buttons) can become first
+  responder via Tab; while one of them has focus, the reader does not get keys.
 
-O botão de dismiss do banner de erro do leitor recusa foco de propósito
-(`.focusable(false)` em `DiffView.swift`), para um clique nele não roubar
-o first responder do `ScrollView`.
+The reader error-banner dismiss button refuses focus on purpose (`.focusable(false)`
+in `DiffView.swift`) so clicking it does not steal first responder from the
+`ScrollView`.
 
-### O que o código não faz sozinho
+### What the code does not do automatically
 
-`isReaderFocused` começa `false`. Não há `onAppear` / `defaultFocus`
-colocando o foco no leitor ao abrir o diff. Sem um dos gestos da tabela
-acima, `→` / `←` / `⇧↓` / `n` / `v` / `Space` não têm handler ativo — não
-é bug do teclado. Com o leitor focado e sem linha sob o cursor, `→` e
-`⇧↓` tratam o cursor como “antes do início” e vão à primeira linha
-visível / primeira pasta (o leitor não foca nada sozinho ao abrir o diff).
-
-O popover de seleção liga `.focused($isQuestionFocused)` ao campo, mas
-**não** pede foco ao aparecer (sem `onAppear` nem `defaultFocus`). Se o
-campo recebe foco automático do sistema ou não, **não foi verificado**
-só lendo o código; o que o código garante é o `onSubmit` quando o campo
-está focado.
+`isReaderFocused` starts `false`. There is no `onAppear` / `defaultFocus` that
+puts focus on the reader when the diff opens. Without one of the gestures above,
+`→` / `←` / `⇧↓` / `n` / `v` / `Space` have no active handler — that is not a
+keyboard bug. With the reader focused and no line under the cursor, `→` and `⇧↓`
+treat the cursor as "before the start" and go to the first visible line / first
+folder (the reader does not focus anything on its own when the diff opens).
 
 ---
 
-## Leitor de diff
+## Diff reader
 
-Superfície: coluna central (`DiffViewer`), com o `ScrollView` focado.
+Surface: center column (`DiffViewer`), with the `ScrollView` focused.
 
-### Modelo do cursor: uma linha da árvore
+### Cursor model: one tree line
 
-O cursor de teclado **não** é “um arquivo”. É **uma linha da árvore** —
-arquivo **ou** pasta — na ordem em que a sidebar desenha, de cima para
-baixo (`DiffTreeVisibleLines`).
+The keyboard cursor is **not** "a file". It is **one line of the tree** — file
+**or** folder — in sidebar draw order, top to bottom (`DiffTreeVisibleLines`).
 
-**Visível** é a palavra-chave: descendentes de pasta **colapsada** não
-entram na sequência. Fechar a pasta é o gesto de “terminei com isso”;
-`→` / `←` / `⇧↑` / `⇧↓` **respeitam** e pulam o que está escondido.
-Navegar com essas teclas **nunca** reabre pasta automaticamente.
+**Visible** is the keyword: descendants of a **collapsed** folder are not in the
+sequence. Closing a folder means "done with this"; `→` / `←` / `⇧↑` / `⇧↓`
+**respect** that and skip hidden items. Those keys **never** reopen a folder
+automatically.
 
-- Cursor numa **arquivo**: o leitor rola até ele (como antes).
-- Cursor numa **pasta**: o leitor **não** se move. O conteúdo da pasta
-  se alcança continuando a andar na árvore.
+- Cursor on a **file**: the reader scrolls to it.
+- Cursor on a **folder**: the reader **does not** move. Reach folder content by
+  continuing through the tree.
 
-`focusedFilePath` guarda o path da linha (arquivo, ou pasta com `/` no
-fim). A sidebar destaca a linha com `surfaceSelected` — arquivo e pasta.
+`focusedFilePath` holds the line path (file, or folder with trailing `/`). The
+sidebar highlights that line with `surfaceSelected` — file or folder.
 
-### Navegação lateral (setas, sem modificador)
+### Lateral navigation (arrows, no modifier)
 
-Segurar `→` / `←` **repete** (varre linhas). Cada repetição troca o alvo;
-quando o alvo é arquivo, usa snap sem animação
-(`DiffReaderFileScrollStyle.rapid`) para não empilhar rolagens. `n` e
-`v` **não** repetem.
+Holding `→` / `←` **repeats** (walks lines). Each repeat changes target; when the
+target is a file, snap scrolls without animation
+(`DiffReaderFileScrollStyle.rapid`) so scrolls do not stack. `n` and `v` do **not**
+repeat.
 
-| Tecla | Faz | Atua quando | Não atua quando | Código |
+| Key | Action | When | Not when | Code |
 | --- | --- | --- | --- | --- |
-| `→` | Próxima linha **visível** da árvore (pasta ou arquivo; sem wrap no fim); aceita key-repeat; **não** abre pasta | Leitor focado; modificadores vazios | Filtro, composer, ou outro first responder; `⌘` / `⌥` / `⌃` + seta | `DiffViewer` → `DiffReaderKeyPressPipeline` → `goToNextFile`; `DiffTreeVisibleLines`; `DiffKeyboardNavigationResolver.nextLine`; `DiffModel+Keyboard` |
-| `←` | Linha visível anterior (sem wrap no início); idem | Idem | Idem | Idem com `goToPreviousFile` / `previousLine` |
-| `n` | Próximo **arquivo** não lido (ordem do leitor), com wrap; **pode** abrir pastas colapsadas para revelar o alvo; fica parado se todos já estão lidos | Leitor focado; **sem** key-repeat | Idem; fase `.repeat` ignorada | `goToNextUnreadFile` + `ensureAncestorDirectoriesOpen` |
-| `v` | Arquivo: alterna “viewed”. Pasta: marca/desmarca **todos** os descendentes e **fecha**/reabre a pasta (visto → fecha; desmarcar → abre) | Leitor focado; **sem** key-repeat | Idem; sem cursor: modelo no-op, tecla já consumida como `.handled` | `toggleViewedOnFocusedFile` |
+| `→` | Next **visible** tree line (folder or file; no wrap at end); key-repeat; **does not** open folders | Reader focused; no other modifiers | Filter, composer, or other first responder; `⌘` / `⌥` / `⌃` + arrow | `DiffViewer` → `DiffReaderKeyPressPipeline` → `goToNextFile`; `DiffTreeVisibleLines`; `DiffKeyboardNavigationResolver.nextLine`; `DiffModel+Keyboard` |
+| `←` | Previous visible line (no wrap at start); same | Same | Same | Same with `goToPreviousFile` / `previousLine` |
+| `n` | Next **unread file** (reader order), with wrap; **may** open collapsed folders to reveal target; stays put if all read | Reader focused; **no** key-repeat | Same; `.repeat` phase ignored | `goToNextUnreadFile` + `ensureAncestorDirectoriesOpen` |
+| `v` | File: toggle "viewed". Folder: toggle **all** descendants and **close** / reopen folder (viewed → close; unmark → open) | Reader focused; **no** key-repeat | Same; no cursor: model no-op, key still `.handled` | `toggleViewedOnFocusedFile` |
 
-### Pastas (Shift + setas)
+### Folders (Shift + arrows)
 
-Repetição de tecla **não** dispara nestes atalhos. `⇧` sozinho é
-permitido no pipeline (um `modifiers.isEmpty` no viewer descartaria o
-acorde).
+Key repeat does **not** fire on these shortcuts. Bare `⇧` is allowed in the
+pipeline.
 
-| Tecla | Faz | Atua quando | Não atua quando | Código |
+| Key | Action | When | Not when | Code |
 | --- | --- | --- | --- | --- |
-| `⇧↓` | Próxima **pasta** na ordem visível; cursor **na linha da pasta**; leitor não rola; não abre pasta | Leitor focado; só Shift | Sem próximo pasta (fica parado) | `goToNextFolder` |
-| `⇧↑` | Pasta anterior; cursor na linha da pasta | Idem | Sem pasta anterior | `goToPreviousFolder` |
-| `⇧→` | Abre a pasta sob o cursor; se o cursor está num arquivo, abre a pasta-mãe | Leitor focado; só Shift; há pasta sob/acima do cursor | Raiz (arquivo sem pasta); pasta já aberta (no-op) | `openFocusedFolder` |
-| `⇧←` | Fecha a pasta sob o cursor (ou a pasta-mãe do arquivo); se o cursor ficaria escondido, move o cursor para a linha da pasta | Idem | Raiz; pasta já fechada (no-op) | `closeFocusedFolder` |
+| `⇧↓` | Next **folder** in visible order; cursor on folder line; reader does not scroll; does not open folder | Reader focused; Shift only | No next folder (no-op) | `goToNextFolder` |
+| `⇧↑` | Previous folder; cursor on folder line | Same | No previous folder | `goToPreviousFolder` |
+| `⇧→` | Open folder under cursor; if cursor is on a file, open parent folder | Reader focused; Shift only; folder under/above cursor | Root; folder already open (no-op) | `openFocusedFolder` |
+| `⇧←` | Close folder under cursor (or parent of file); if cursor would be hidden, move cursor to folder line | Same | Root; folder already closed (no-op) | `closeFocusedFolder` |
 
-`j` e `k` **não** fazem nada no leitor. Letras com modificador
-(ex.: `⇧n`, `⌘v`) caem em `.ignored`.
+`j` and `k` do nothing in the reader. Modified letters (e.g. `⇧n`, `⌘v`) fall
+through as `.ignored`.
 
-As setas laterais **sem** Shift **não** passam por
-`DiffReaderScrollKeyMapping` — são navegação de linha da árvore. Com
-Shift, as quatro setas são acordes de pasta, nunca rolagem.
+Unmodified lateral arrows do **not** go through `DiffReaderScrollKeyMapping` — they
+are tree-line navigation. With Shift, all four arrows are folder chords, never
+scroll.
 
-### Rolagem dentro do arquivo
+### Scrolling within a file
 
-Não é a rolagem nativa do sistema. `.focusable()` instala um
-`KeyViewProxy` como first responder, então o AppKit **não** pagina o
-`ScrollView` sozinho; o app aplica um salto discreto em
-`scrollPosition.scrollTo(y:)` (`DiffViewer.swift`).
+Not native system scroll. `.focusable()` installs a `KeyViewProxy` as first
+responder, so AppKit does **not** page the `ScrollView` on its own; the app applies
+a discrete jump via `scrollPosition.scrollTo(y:)` (`DiffViewer.swift`).
 
-O passo de página é `0.9 ×` altura do viewport. Setas cima/baixo:
+Page step is `0.9 ×` viewport height. Up/down arrows:
 
-- toque único: `5 × DiffViewerMetric.codeLineHeight` (`arrowLineStepCount`)
-- key-repeat (segurar): `3 ×` a mesma altura (`arrowLineRepeatStepCount`)
+- single press: `5 × DiffViewerMetric.codeLineHeight` (`arrowLineStepCount`)
+- key-repeat (hold): `3 ×` same height (`arrowLineRepeatStepCount`)
 
 (`DiffReaderKeyboardScroll.swift`; `DiffViewer.swift`).
 
-| Tecla | Faz | Atua quando | Não atua / observação | Código |
+| Key | Action | When | Notes | Code |
 | --- | --- | --- | --- | --- |
-| `Space` | Página para baixo | Leitor focado; só Shift como modificador opcional | `⌘` / `⌥` / `⌃` + Space: mapeamento rejeita | `DiffViewer.swift`; `DiffReaderKeyboardScroll.swift` |
-| `⇧Space` | Página para cima | Leitor focado | Idem | Idem |
-| `Page Down` | Página para baixo | Leitor focado, sem Shift | Com Shift o mapeamento devolve `nil` (não pagina) | Idem |
-| `Page Up` | Página para cima | Leitor focado, sem Shift | Com Shift: idem, `nil` | Idem |
-| `↓` | Cinco linhas para baixo no toque; três por repetição ao segurar | Leitor focado, sem Shift | Com Shift: navegação de pasta (`⇧↓`), não rolagem | Idem |
-| `↑` | Cinco linhas para cima no toque; três por repetição ao segurar | Leitor focado, sem Shift | Com Shift: navegação de pasta (`⇧↑`), não rolagem | Idem |
+| `Space` | Page down | Reader focused; Shift optional as only modifier | `⌘` / `⌥` / `⌃` + Space: mapping rejects | `DiffViewer.swift`; `DiffReaderKeyboardScroll.swift` |
+| `⇧Space` | Page up | Reader focused | Same | Same |
+| `Page Down` | Page down | Reader focused, no Shift | With Shift: mapping returns `nil` | Same |
+| `Page Up` | Page up | Reader focused, no Shift | With Shift: `nil` | Same |
+| `↓` | Five lines down on tap; three per repeat when held | Reader focused, no Shift | With Shift: folder nav (`⇧↓`), not scroll | Same |
+| `↑` | Five lines up on tap; three per repeat when held | Reader focused, no Shift | With Shift: folder nav (`⇧↑`), not scroll | Same |
 
-Não há inércia, rubber-banding de trackpad, nem animação nesse caminho —
-é um offset novo calculado e aplicado. `Home` / `End` não entram no
-`switch` do mapeamento de rolagem; o handler devolve `.ignored` para
-elas. O que o sistema faz depois disso **não foi verificado** no código.
+No inertia, trackpad rubber-banding, or animation on this path — a new offset is
+computed and applied. `Home` / `End` are not in the scroll mapping `switch`; the
+handler returns `.ignored`.
 
 ---
 
-## Sidebar (mapa de mudanças)
+## Sidebar (change map)
 
-### Filtro
+### Filter
 
-O `TextField` “Filter files…” tem `@FocusState` e anel de foco
-(`DiffSidebar.swift`). **Não há** `onKeyPress`, `onSubmit` nem atalho
-próprio: digitar filtra via binding; Enter não tem ação especial no
-código.
+The "Filter files…" `TextField` has `@FocusState` and a focus ring
+(`DiffSidebar.swift`). No `onKeyPress`, `onSubmit`, or dedicated shortcut: typing
+filters via binding; Enter has no special action.
 
-Enquanto o filtro está focado, os atalhos do leitor **não** rodam.
+While the filter is focused, reader shortcuts do **not** run.
 
-### Árvore
+### Tree
 
-Clique num arquivo chama `revealFileInReader` e devolve o foco ao leitor
-(`DiffSidebarFileRow.swift`). **Não há** tratamento de teclado próprio
-na árvore — as setas do leitor movem o cursor de linha, e a sidebar
-rola para manter essa linha visível.
+Clicking a file calls `revealFileInReader` and returns focus to the reader
+(`DiffSidebarFileRow.swift`). No dedicated keyboard handling on the tree — reader
+arrows move the line cursor, and the sidebar scrolls to keep that line visible.
 
 ---
 
 ## Chat
 
-Superfície: `DiffChatPanel`, visível quando `model.isChatOpen`.
+Surface: `DiffChatPanel`, visible when `model.isChatOpen`.
 
-| Tecla | Faz | Atua quando | Não atua / observação | Código |
+| Key | Action | When | Notes | Code |
 | --- | --- | --- | --- | --- |
-| `Return` | Envia o rascunho do composer | Composer (`TextEditor`) focado e `isEnabled` (`model.canUseSampleAgent`) | Se o composer está desabilitado, `Return` é **consumido** (`.handled`) sem enviar — nada visível acontece | `DiffChatPanel.swift` |
-| `⇧Return` | Nova linha no rascunho | Composer focado | O handler devolve `.ignored` para o `TextEditor` inserir a quebra | `DiffChatPanel.swift` |
-| `Escape` (`onExitCommand`) | Fecha o chat (`closeChat`) | Registrado no painel inteiro | Se dispara com o `TextEditor` como first responder **não foi verificado** só pelo código | `DiffChatPanel.swift`; `DiffModel+Chat.swift` |
+| `Return` | Send composer draft | Composer (`TextEditor`) focused and `isEnabled` (`model.canUseSampleAgent`) | Disabled composer: `Return` is **consumed** (`.handled`) without sending | `DiffChatPanel.swift` |
+| `⇧Return` | New line in draft | Composer focused | Handler returns `.ignored` for `TextEditor` to insert break | `DiffChatPanel.swift` |
+| `Escape` (`onExitCommand`) | Close chat (`closeChat`) | Registered on whole panel | — | `DiffChatPanel.swift`; `DiffModel+Chat.swift` |
 
-Não há atalho de teclado no código para **abrir** o chat; a abertura
-passa por ações do modelo (envio, ask/explain da seleção, etc.).
+No keyboard shortcut in code to **open** chat; opening goes through model actions
+(send, ask/explain selection, etc.).
 
-Enquanto o composer está focado, `→` / `←` / `n` / `v` / `Space` do
-leitor não disparam.
+While the composer is focused, reader `→` / `←` / `n` / `v` / `Space` do not fire.
 
 ---
 
-## Popover de seleção
+## Selection popover
 
-Aparece sobre o hunk quando há seleção e há agente
+Appears over the hunk when there is a selection and an agent
 (`DiffHunkBlock.swift`).
 
-| Tecla | Faz | Atua quando | Código |
+| Key | Action | When | Code |
 | --- | --- | --- | --- |
-| `Return` (`onSubmit` do `TextField`) | Envia a pergunta da seleção (`askAboutSelection`) e limpa o campo | Campo “Ask something specific…” focado (e a linha habilitada por `canAskAboutSelection`) | `DiffSelectionPopover.swift` |
+| `Return` (`onSubmit` on `TextField`) | Send selection question (`askAboutSelection`) and clear field | "Ask something specific…" focused (and line enabled by `canAskAboutSelection`) | `DiffSelectionPopover.swift` |
 
-Não há `onKeyPress` no popover. Não há atalho de teclado no código para
-“Explain selection” — só o botão.
+No `onKeyPress` on the popover. No keyboard shortcut for "Explain selection" — button only.
 
 ---
 
 ## Welcome
 
-O editor de goal é um `TextEditor` com `@FocusState` só para o anel de
-foco (`WelcomeView.swift`). **Não há** `onKeyPress` / `onSubmit` /
-atalho para “Open diff” a partir do teclado no editor.
+The goal editor is a `TextEditor` with `@FocusState` for the focus ring only
+(`WelcomeView.swift`). No `onKeyPress` / `onSubmit` / shortcut to "Open diff" from
+the editor.
 
-Botões com `dsFocusable` (incluindo “Open diff”) podem ser ativados pelo
-comportamento padrão de botão focado no macOS (`Space` / `Return` quando
-o botão é o first responder). Isso é `dsFocusable` em `DSModifiers.swift`
-+ uso em `WelcomeView.swift`; **não** é um `keyboardShortcut` registrado
-pelo app.
-
----
-
-## Top bar do diff
-
-Toggle da sidebar, pill de branches (voltar) e toggle de tema usam
-`dsFocusable` (`DiffTopBar.swift`). Sem `keyboardShortcut`. Mesma regra:
-só respondem a tecla se o botão estiver focado (comportamento de botão),
-não há atalho global.
+Buttons with `dsFocusable` (including "Open diff") can be activated by default
+macOS focused-button behavior (`Space` / `Return` when the button is first
+responder). That is `dsFocusable` in `DSModifiers.swift` + `WelcomeView.swift` —
+not an app-registered `keyboardShortcut`.
 
 ---
 
-## O que não existe (e frustra se você procura)
+## Diff top bar
 
-Confirmado no código:
-
-1. **Não há barra de menu com atalhos do app.** `DitGiffApp` só declara
-   `WindowGroup` + `.windowStyle(.hiddenTitleBar)`. Não há `.commands`,
-   `CommandGroup`, nem nenhum `keyboardShortcut` / `KeyEquivalent` no
-   alvo da app. O menu mínimo que o sistema possa mostrar sozinho **não
-   foi inspecionado em runtime**.
-
-2. **Rolagem por teclado no leitor é paginação discreta**, não a
-   rolagem inercial nativa. Ver seção do leitor e o comentário em
-   `DiffViewer.swift`.
-
-3. **Não há** atalho global para abrir/fechar sidebar, abrir chat, voltar
-   à Welcome, alternar tema, ou marcar hunk como lido — só o que as
-   tabelas acima listam.
-
-4. **Não há** monitor de `NSEvent` (`addLocalMonitor` /
-   `addGlobalMonitor`) no app.
+Sidebar toggle, branch pill (back), and theme toggle use `dsFocusable`
+(`DiffTopBar.swift`). No `keyboardShortcut`. They respond only when focused (button
+behavior), not as global shortcuts.
 
 ---
 
-## Observações (conflitos / tecla consumida sem efeito)
+## What does not exist
 
-- Com o leitor focado, `→` na última linha visível, `←` na primeira,
-  `n` com tudo lido, `⇧↓` / `⇧↑` sem pasta vizinha, `⇧→` / `⇧←` em
-  no-op (raiz / já aberta / já fechada) e `v` sem cursor ainda retornam
-  `.handled` no `onKeyPress` — a tecla é engolida mesmo quando o modelo
-  não move nada.
-- No composer desabilitado, `Return` é `.handled` sem enviar.
-- `⇧Page Down` / `⇧Page Up` no leitor: o mapeamento devolve `nil` e o
-  handler devolve `.ignored` — não paginam. `⇧↓` / `⇧↑` / `⇧←` / `⇧→`
-  são atalhos de pasta, não rolagem.
-- Foco num botão `dsFocusable` da top bar (via Tab, por exemplo) tira o
-  leitor do caminho dos atalhos; `Space` nesse estado tenderia a ativar
-  o botão, não a paginar o diff. Interação exata Tab ↔ leitor **não foi
-  verificada** em runtime.
+Confirmed in code:
+
+1. **No menu bar with app shortcuts.** `DitGiffApp` only declares `WindowGroup` +
+   `.windowStyle(.hiddenTitleBar)`. No `.commands`, `CommandGroup`, or
+   `keyboardShortcut` / `KeyEquivalent` on the app target.
+
+2. **Reader keyboard scroll is discrete paging**, not native inertial scroll. See
+   reader section and comment in `DiffViewer.swift`.
+
+3. **No** global shortcut to open/close sidebar, open chat, return to Welcome,
+   toggle theme, or mark hunk read — only what the tables above list.
+
+4. **No** `NSEvent` monitor (`addLocalMonitor` / `addGlobalMonitor`) in the app.
+
+---
+
+## Notes (consumed keys with no visible effect)
+
+- With reader focused: `→` on last visible line, `←` on first, `n` with everything
+  read, `⇧↓` / `⇧↑` with no adjacent folder, `⇧→` / `⇧←` on no-op (root / already
+  open / already closed), and `v` with no cursor still return `.handled` — the key
+  is swallowed even when the model moves nothing.
+- Disabled composer: `Return` is `.handled` without sending.
+- `⇧Page Down` / `⇧Page Up` on reader: mapping returns `nil`, handler returns
+  `.ignored` — no paging. `⇧↓` / `⇧↑` / `⇧←` / `⇧→` are folder shortcuts, not scroll.
+- Focus on a `dsFocusable` top-bar button (via Tab, for example) takes the reader
+  off the shortcut path; `Space` in that state tends to activate the button, not
+  page the diff.

@@ -16,15 +16,14 @@ Stack: Swift / SwiftUI, native macOS.
 | Where | What |
 | --- | --- |
 | [`docs/product/PRODUCT.md`](docs/product/PRODUCT.md) | Product: problem, value pillars, what is decided, anti-goals. Read before proposing scope. |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The slices from here to v1. Where the current work sits, and what it unblocks. |
+| [`docs/product/DESIGN-SYSTEM.md`](docs/product/DESIGN-SYSTEM.md) | Design principles and forbidden patterns. |
 | [`docs/shortcuts.md`](docs/shortcuts.md) | Keyboard shortcuts by surface, and which focus each one needs. |
-| `DitGiff/DitGiff/DesignSystem/` | The design system in Swift. Every color, spacing, type and motion value lives here. |
+| `DitGiff/DitGiff/DesignSystem/` | Design tokens in Swift — colors, spacing, type, motion. Source of truth for values. |
 | `DitGiff/` | The app. Open `DitGiff.xcodeproj` from here. |
 | `assets/icon/` | Icon drawn in code (`render-icon.swift`). |
 
-Design rules are deliberately not in this file. Take them from the design system in
-`DesignSystem/`, which is where the values are enforced; a `DESIGN.md` will hold the
-written rules.
+Design rules are deliberately not in this file. Principles live in
+`docs/product/DESIGN-SYSTEM.md`; enforced values live in `DesignSystem/`.
 
 ## Code layout
 
@@ -82,10 +81,6 @@ against actual `git diff` output rather than a hand-written string.
 
 ## Traps in this repository
 
-- **`ds-bundle/` is generated** by design-sync, which overwrites it wholesale. Never
-  hand-edit it, never move the folder.
-- **`docs/design-handoff/` holds prototypes, not code.** `support.js` is the prototype's
-  own runtime and the `.dc.html` files are references to read, never to copy.
 - **The PNGs in `assets/icon/` are build artifacts.** Edit the constants at the top of
   `render-icon.swift` and run `./build.sh`. After regenerating, copy the
   `AppIcon.appiconset` into the app's asset catalog.

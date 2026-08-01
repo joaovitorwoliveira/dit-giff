@@ -1,6 +1,5 @@
-/// Stand-in for real git and a real agent while the diff screen is a static prototype.
-/// Values are lifted from `docs/design-handoff/Dit Giff v2.dc.html`; nothing here is
-/// paraphrased, because the copy is what is being reviewed.
+/// Stand-in for real git and a real agent in previews and tests.
+/// Copy is paraphrased sample content — illustrative, not from a live repo.
 nonisolated enum DiffSampleData {
     static let compareBranch = "feature/annual-billing"
     static let baseBranch = "main"

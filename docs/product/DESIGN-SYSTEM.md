@@ -1,146 +1,81 @@
 # Dit Giff — design system
 
-Este é o arquivo a importar no Claude Design antes de gerar qualquer tela. Tudo aqui
-deriva das decisões já tomadas no ícone (`assets/icon/`), estendidas para o que uma
-interface de leitura longa precisa.
+Written rules for the interface. **Canonical token values live in**
+`DitGiff/DitGiff/DesignSystem/` (`DSColor.swift`, `DSType.swift`, `DSSpace.swift`,
+`DSMotion.swift`). When this document and the Swift disagree, trust the Swift.
 
-## A ideia que atravessa tudo
+## What runs through everything
 
-Duas decisões do ícone valem para a interface inteira:
+**Long-reading tool.** Comfort and regularity beat spectacle. Code line height is
+fixed at 18px; do not tighten it to save vertical space.
 
-**Nenhum cinza é neutro.** Todo preto, todo cinza e todo branco desta interface tem
-undertone verde. É quase imperceptível isolado, e é o que faz a tela parecer feita por
-alguém em vez de montada com o cinza padrão do framework. Se um tom aparecer neutro,
-está errado.
+**Diff colors carry meaning.** Green and coral mark add/remove. They are not reused
+as a generic accent. Selection uses `surfaceSelected` plus a 2px `diffAdd` rule on
+the left; keyboard focus uses a 2px ring in muted `textSecondary`, not diff green.
 
-**A divisa antes/depois.** O ícone é um campo partido em dois. A interface pode ecoar
-isso, mas com parcimônia — na divisa entre painéis, nunca como decoração.
+**Syntax is the exception.** Highlighting may use extra hues; nowhere else in the
+chrome does.
 
-## Cor
+**Elevation by surface, not shadow.** The only shadow is on popovers.
 
-Todos os valores em sRGB.
+## Color
 
-### Superfícies — dark (o modo padrão)
+Dark mode is the default. Light mode follows a Solarized Light base (cream surfaces,
+muted text). Dark mode uses neutral charcoal surfaces with bright diff green
+(`#3DDC5E`) and coral (`#FF5744`).
 
-| Token | Hex | Uso |
-| --- | --- | --- |
-| `surface-0` | `#0B120F` | fundo da janela, o nível mais fundo |
-| `surface-1` | `#0F1714` | painéis, sidebar |
-| `surface-2` | `#141D19` | blocos de hunk, cards elevados |
-| `surface-3` | `#1A2420` | hover, linha selecionada |
-| `border-subtle` | `#1E2A25` | divisórias internas, borda de hunk |
-| `border` | `#2A3832` | separação entre painéis |
+`textError` is dusty rose / wine — red enough to notice, but not the coral of
+`diffDel`. Error and deletion must stay distinguishable on the same screen.
 
-### Superfícies — light
+Diff line fills are the diff colors at low alpha, never separate hex values. Word-
+level fills use higher alpha on the same hues.
 
-| Token | Hex | Uso |
-| --- | --- | --- |
-| `surface-0` | `#F2F5F3` | fundo da janela |
-| `surface-1` | `#FAFCFB` | painéis |
-| `surface-2` | `#FFFFFF` | blocos de hunk |
-| `surface-3` | `#EDF2EF` | hover, seleção |
-| `border-subtle` | `#E2E9E5` | divisórias internas |
-| `border` | `#D3DDD8` | separação entre painéis |
+Row hover (`surfaceHover`) and keyboard reading cursor (`surfaceSelected`) are
+stronger steps than `surface3` so they read at a glance on list rows.
 
-### Texto
+See `DSColor.swift` for the full palette tables.
 
-| Token | Dark | Light | Uso |
+## Typography
+
+| Role | Face | Size / leading | Weight |
 | --- | --- | --- | --- |
-| `text-primary` | `#E4EDE8` | `#101815` | código, títulos |
-| `text-secondary` | `#9CAEA5` | `#4F5F58` | rótulos, metadados |
-| `text-tertiary` | `#66776F` | `#7C8B84` | números de linha, contagens |
-| `text-error` | `#C97B88` | `#9A4554` | banner de erro, falha recuperável |
+| Panel title | SF Pro Text | 13 / 18 | Semibold |
+| Body | SF Pro Text | 13 / 18 | Regular |
+| Label | SF Pro Text | 11 / 15 | Medium |
+| Code | JetBrains Mono (fallback: SF Mono) | 12 / 18 | Regular |
+| Line number | JetBrains Mono (fallback: SF Mono) | 11 / 18 | Regular |
 
-`text-error` é rosa-poeira / vinho — vermelho o bastante para marcar, mas **não** o
-coral de `diff-del` (`#FF5744` no dark / `#E0230E` no light, na paleta Swift de
-revisão 2). Erro e remoção lado a lado têm de ser distinguíveis; o mesmo vermelho
-nas duas leituras deixaria a tela ambígua. Use só no texto do aviso, com sobriedade
-— voz de colega atento, não alarme.
+Five roles, no more. Diff metrics use fixed sizes — Dynamic Type would break gutter
+alignment.
 
-### Diff
+## Spacing, radius, density
 
-As cores de marca vivem no gutter e no texto. Os fundos de linha são as mesmas cores
-em alfa muito baixo — nunca cores próprias, para que verde e coral apareçam uma vez só
-no sistema.
+Base unit: 4px. Closed scale: `4 8 12 16 24 32 48` (`DSSpace`).
 
-| Token | Dark | Light |
+| Radius | Value | Use |
 | --- | --- | --- |
-| `diff-add` | `#8FBF8A` | `#3F7238` |
-| `diff-del` | `#F07A64` | `#B8412A` |
-| `diff-add-bg` | `#8FBF8A` @ 9% | `#3F7238` @ 8% |
-| `diff-del-bg` | `#F07A64` @ 9% | `#B8412A` @ 8% |
-| `diff-add-word` | `#8FBF8A` @ 22% | `#3F7238` @ 18% |
-| `diff-del-word` | `#F07A64` @ 22% | `#B8412A` @ 18% |
+| `sm` | 6px | Badges, chips |
+| `md` | 10px | Hunk blocks, cards |
+| `lg` | 14px | Popovers, floating panels |
 
-`diff-add` e `diff-del` no dark são exatamente as cores do ícone. Essa repetição é
-proposital: é o que amarra a marca à tela.
+Density: list row height 28px, panel padding 12px, diff gutter 44px wide
+(`DSDensity`).
 
-### Não existe cor de destaque separada
+## Motion
 
-A tentação é criar um accent azul ou roxo para seleção e foco. Não faça. Seriam cinco
-matizes numa tela que já tem duas com significado semântico forte, e o brief é
-explícito: se tudo tem cor, nada tem.
+Only four motions exist (`DSMotion`). Nothing else animates.
 
-- **Seleção**: `surface-3` mais uma régua de 2px em `diff-add` na borda esquerda.
-- **Foco de teclado**: anel de 2px em `diff-add` a 40% de opacidade.
-- **Link / ação**: `text-primary` com sublinhado, não uma cor.
-
-O `diff-add` como cor de ação funciona porque em ferramenta de diff verde já significa
-"presente, adicionado" — é a mesma semântica, não uma segunda.
-
-## Tipografia
-
-| Papel | Família | Tamanho / entrelinha | Peso |
+| Motion | Duration | Easing | Use |
 | --- | --- | --- | --- |
-| Título de painel | SF Pro Text | 13 / 18 | 600 |
-| Corpo de interface | SF Pro Text | 13 / 18 | 400 |
-| Rótulo, metadado | SF Pro Text | 11 / 15 | 500 |
-| Código | SF Mono | 12 / 18 | 400 |
-| Número de linha | SF Mono | 11 / 18 | 400 |
+| Collapse | 160ms | ease-out | Expand/collapse groups |
+| Read | 200ms | ease-in-out | Mark hunk as read (fade to receded) |
+| Jump | 240ms | ease-in-out | Scroll to hunk |
+| Flash | 600ms | ease-in-out | Highlight flash after jump |
 
-Em HTML: `-apple-system, BlinkMacSystemFont` para interface e `ui-monospace,
-"SF Mono", Menlo` para código.
+Respects Reduce Motion (`animation(reduceMotion:)` returns `nil`).
 
-A entrelinha do código é 18px e não se mexe. É uma ferramenta de leitura longa: a
-regularidade vertical do bloco de código importa mais do que economizar altura.
+## Forbidden
 
-## Espaçamento, raio, elevação
-
-Base de 4px. Use `4 8 12 16 24 32 48`, nada fora disso.
-
-| Raio | Valor | Uso |
-| --- | --- | --- |
-| `radius-sm` | 6px | badges, chips, contadores |
-| `radius-md` | 10px | blocos de hunk, cards de pista |
-| `radius-lg` | 14px | popovers, painéis flutuantes |
-
-Cantos macios em tudo, ecoando as pontas arredondadas do ícone. Nada de canto vivo.
-
-Elevação por superfície, não por sombra. A única sombra da interface é a de popovers.
-
-## Densidade
-
-Alta mas respirável. Altura de linha em listas: 28px. Padding interno de painel: 12px.
-Gutter do diff: 44px de largura.
-
-## Movimento
-
-Só o que confirma uma ação: expandir e colapsar grupos (160ms, ease-out), marcar hunk
-como lido (200ms de fade para o estado recuado), pular para um hunk (scroll suave de
-240ms mais um flash de destaque de 600ms). Nada mais anima. Sem parallax, sem entrada
-escalonada, sem skeleton pulsante.
-
-## Restrição que vem do destino final
-
-Este design vai ser reimplementado em SwiftUI. Prefira estruturas que mapeiam direto
-para `NavigationSplitView`, `List`, `ScrollView` e `HSplitView`. Evite qualquer coisa
-que só exista em CSS — grid areas complexas, `backdrop-filter` empilhado,
-posicionamento sticky aninhado. Se um detalhe visual for difícil de reproduzir
-nativamente, escolha a versão mais simples.
-
-## Proibido
-
-Nenhum clichê de IA: sem gradiente roxo, sem ícone de faísca, sem estrelinha, sem
-brilho pulsante em nada gerado por modelo. Sem cor saturada fora do verde e do coral
-do diff — com a única exceção semântica de `text-error`, que é rosa/vinho de propósito
-para não colidir com `diff-del`. Sem sombra pesada. Sem emoji na interface.
+No AI clichés: purple gradients, sparkle icons, pulsing glow on model output. No
+heavy shadows. No emoji in the interface. No saturated accent outside diff semantics
+and syntax — except `textError`, which is rose on purpose.

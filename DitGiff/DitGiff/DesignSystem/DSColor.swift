@@ -1,9 +1,7 @@
 import SwiftUI
 
-/// Source of truth: the revision 2 palette shipped in `docs/design-handoff/Dit Giff v2.dc.html`,
-/// which supersedes the older values in `docs/product/DESIGN-SYSTEM.md`.
-/// Light now derives from Solarized Light (base3 #FDF6E3, base2 #EEE8D5, base00 #657B83,
-/// base01 #586E75, base1 #93A1A1 and accents); dark still comes from v2.
+/// Canonical palette for the app. Light derives from Solarized Light; dark uses neutral
+/// charcoal surfaces with bright diff green and coral.
 
 // Tokens are components rather than `SwiftUI.Color` because a `Color` cannot be
 // compared or have another token derived from it.

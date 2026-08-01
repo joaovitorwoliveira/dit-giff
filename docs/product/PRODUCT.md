@@ -1,102 +1,82 @@
-# git-diff-native (nome provisório)
+# Dit Giff — product
 
-Documento de produto. Resumo das decisões, não do raciocínio. O registro cru
-da conversa que originou tudo isto vive no `NEXT-PRODUCT.md` do repositório
-Mellon e é temporário.
+Product decisions in brief. Not the reasoning archive.
 
-Nome ainda não definido. `git-diff-native` é placeholder, será trocado.
+## What it is
 
-## O que é
+A native macOS app that turns the diff between a branch and its base into a review
+you can defend. You pick the branch and base branch; the app builds the diff
+locally and can use AI to explain a hunk on demand, flag what looks incidental or
+out of scope, and surface the decisions a reviewer would ask "why?" about.
 
-Um app nativo de macOS que transforma o diff de um merge request em um review
-que você consegue defender. Você escolhe a branch e a branch-base, ele monta o
-diff localmente, e usa IA pra explicar cada trecho, apontar o que parece
-incidental ou mexido por engano, e listar as decisões que um revisor perguntaria
-"por quê".
+One line: the local MR preview that should exist and does not.
 
-Uma frase: o preview de MR que devia existir localmente e não existe.
+## Why it exists
 
-## Por que existe (a decisão de categoria)
+An earlier product (Mellon) asked the user to leave where they already work. It did
+not stick — not even for the author, who was the target user.
 
-Vem do aprendizado de um produto anterior (Mellon), que era um destino: pedia pro
-usuário sair de onde trabalha. Não pegou, nem com o próprio autor, que era o
-usuário-alvo.
+The rule that came out of that: do not build anything that requires changing where
+the user works. Build a layer around the current flow that adds value without asking
+for migration. References: Maestri (canvas over agent terminals) and Wispr Flow
+(dictation). Minimal surface, no migration, attached to something high frequency.
 
-A regra que saiu disso: não construa nada que exija mudar de onde o usuário
-trabalha. Construa uma camada que envolve o fluxo atual e agrega valor sem pedir
-migração. Referências: Maestri (canvas de terminais de agente) e Wispr Flow
-(ditado). Superfície mínima, nenhuma migração, conectada a algo de alta
-frequência.
+## The problem
 
-## O problema que ataca
+With agents, implementation got cheap: a one-week feature can land in a few hours.
+What remains is review — reading what the agent wrote so you can open the MR with
+confidence. In one real case: 95% done in two hours, four days to open the MR,
+blocked by the fear that a reviewer would ask "why that decision?" and there would
+be no good answer.
 
-No fluxo com agentes, implementar virou barato: uma feature de uma semana sai em
-~3h. O gargalo que sobrou é a revisão: ler o código que o agente escreveu pra
-poder subir o MR com confiança. Num caso real, 95% pronto em 2h e 4 dias pra
-abrir o MR, travado no medo de o revisor perguntar "por que essa decisão?" e não
-saber responder.
+Review value is human and cannot be outsourced to another agent. You need to
+understand what you ship, and reading the agent's code is how you learn. So the
+product does not review for you. It helps you read and understand faster, and
+leaves you ready to defend each decision.
 
-O valor da revisão é humano e não pode ser terceirizado pra outro agente. Você
-precisa entender o que entrega, e ler o código do agente é como você aprende. Por
-isso o produto não revisa por você. Ele te faz ler e entender mais rápido, e te
-deixa pronto pra defender cada decisão.
+## Value pillars
 
-## Pilares de valor
+1. **Better review UI than GitLab**, with or without AI. Organizes the change,
+   collapses noise, makes macro navigation painless.
+2. **AI that works from the diff**, without requiring anything beyond it. Explains
+   a hunk on demand, flags incidental / out-of-scope / accidental edits, and raises
+   the decisions a reviewer would question.
+3. **Optional reference.** A spec, ticket, or one-line intent — when provided —
+   sharpens answers. Never required.
 
-1. UI de review melhor que o GitLab, com ou sem IA. Organiza a mudança, colapsa
-   e minimiza o ruído, deixa navegar o macro sem dor.
-2. IA que trabalha a partir do diff, sem exigir nada além dele. Explica um trecho
-   sob demanda, sinaliza o que parece incidental / fora de escopo / mexido por
-   engano, e levanta as decisões que um revisor questionaria.
-3. Referência opcional. Uma spec, um ticket, ou uma frase de intenção, quando
-   fornecida, deixa a resposta mais precisa. Nunca obrigatória.
+## Connection principles (zero friction)
 
-## Princípios de conexão (zero fricção)
+- **Local.** Reads git on the machine. The pain lives in the diff, and the diff
+  lives in git, not on the website. GitLab and GitHub are free because the source
+  is git.
+- **Uses credentials the machine already has** (SSH keys, git config). No repo
+  setup.
+- **Read-only.** AI does not write code. No write permission on the repo.
+- **Bring your own AI.** Uses the subscription the user already has, calling Claude
+  Code headless. No new API key to manage.
 
-- Local. Lê o git da máquina. A dor mora no diff, e o diff mora no git, não no
-  site. GitLab e GitHub saem de graça porque a fonte é o git.
-- Usa as credenciais que a máquina já tem (chaves SSH, config de git). Zero
-  configuração de repositório.
-- Somente leitura. A IA não escreve código. Sem permissão de escrita no repo.
-- Traz a própria IA. Usa a assinatura que o usuário já tem, chamando o Claude
-  Code em modo headless. Sem API key nova pra gerenciar.
+## Decided
 
-## O que está decidido
+- **Stack:** Swift / native macOS. Personal product, usable from day one, deliberate
+  craft and learning choice.
+- **Read-only and BYO-AI via Claude Code headless.** Proved by spike.
+- **Scope in one sentence.** One job: turn branch-against-base into a defensible
+  review. "Open any repo, browse any code" is out of scope.
+- **Context for AI:** neither pasted diff alone nor the whole project. The agent
+  gets read-only git scoped to `diff`, `show`, `log`, `status`, `merge-base`,
+  `ls-files` — nothing else — and fetches what it needs. Large diffs do not fit
+  reliably in a prompt budget; pasting the patch breaks on the MRs that matter
+  most.
 
-- Stack: Swift / macOS nativo. É um produto pessoal, pra uso desde o dia um, e uma
-  escolha deliberada de craft e aprendizado.
-- Read-only e BYO-IA via Claude Code headless. Provado por spike.
-- Escopo é uma frase. Faz uma coisa: transforma branch-contra-base em review
-  defensável. "Abrir qualquer repo, navegar qualquer código" fica de fora.
-- Contexto pra IA: nem só o diff colado no prompt, nem o projeto inteiro. O agente
-  ganha git read-only escopado (`diff`, `show`, `log`, `status`, `merge-base`,
-  `ls-files` — e nada além) e busca o que precisa. Diff grande não cabe no
-  orçamento de prompt de forma confiável; colar o patch quebra nos MRs que mais
-  importam.
+## Still open
 
-## Prova (spike, 23/07/2026)
+- How findings are presented: as clues, never verdicts, to keep the human in the
+  loop and preserve learning.
+- Where the one-line intent comes from: typed by the user, or inferred from branch
+  name / commits / MR title.
 
-Rodado num MR real (64 arquivos, +3242/-347):
-`git diff base...branch | claude -p "<prompt>"`, headless, só leitura, 42s,
-usando a assinatura já logada na máquina. Resultado: mapa da mudança, lista de
-trechos suspeitos, e as decisões a defender. As duas capturas mais fortes (uma
-mudança semântica sutil num check de cobrança, e uma função que passou a lançar
-exceção) foram conferidas contra o diff e são reais. Conclusão: o mecanismo
-funciona e o valor é real.
+## Anti-goals
 
-Piso testado foi só o diff. O teto é dar ao agente o contexto do projeto inteiro,
-o que resolveria os pontos que o próprio modelo marcou como cegos.
-
-## Em aberto
-
-- Como o app apresenta os achados: como pistas, nunca como veredito, pra manter o
-  humano no loop. É o que preserva o aprendizado.
-- De onde vem o one-liner de intenção: digitado pelo usuário, ou inferido do nome
-  da branch / commits / título do MR.
-- Design da UI melhor que o GitLab.
-
-## Anti-objetivos
-
-- Não é workspace, nem árvore de arquivos, nem lugar onde algo precisa morar.
-- A IA não escreve código nem sobe MR por você.
-- Nada que exija o usuário trabalhar spec-first pra ter valor.
+- Not a workspace, file tree browser, or place something has to live.
+- AI does not write code or open the MR for you.
+- Nothing that requires spec-first workflow to be useful.
